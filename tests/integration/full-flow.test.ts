@@ -140,6 +140,33 @@ describe("Integration: full agent flow", () => {
     expect(trace).toHaveCalledToolWith("double", 5);
   });
 
+  test("sequence mock returns different values per call", async () => {
+    const trace = await run(
+      async (ctx) => {
+        const first = await ctx.tools.llm!("classify this");
+        const second = await ctx.tools.llm!("generate answer");
+        const third = await ctx.tools.llm!("one more");
+        return { first, second, third };
+      },
+      {
+        mocks: {
+          llm: mock.sequence([
+            { intent: "question" },
+            { message: "Here is your answer" },
+          ]),
+        },
+      }
+    );
+
+    expect(trace).toComplete();
+    expect(trace).toHaveToolCallCount("llm", 3);
+    const output = trace.output as any;
+    expect(output.first).toEqual({ intent: "question" });
+    expect(output.second).toEqual({ message: "Here is your answer" });
+    // Third call repeats the last value
+    expect(output.third).toEqual({ message: "Here is your answer" });
+  });
+
   test("multiple steps with tool calls", async () => {
     const trace = await run(
       async (ctx) => {

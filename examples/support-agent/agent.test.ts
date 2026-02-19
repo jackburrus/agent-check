@@ -56,15 +56,10 @@ const kbArticles: KBArticle[] = [
 
 function baseMocks(overrides: Record<string, ReturnType<typeof mock.fn>> = {}) {
   return {
-    llm: mock.fn((prompt: string) => {
-      if (prompt.startsWith("Classify")) {
-        return { intent: "question", confidence: 0.95 } as ClassifyResult;
-      }
-      return {
-        message: "Here is your answer based on our knowledge base.",
-        tokensUsed: 150,
-      } as LLMResponse;
-    }),
+    llm: mock.sequence([
+      { intent: "question", confidence: 0.95 } as ClassifyResult,
+      { message: "Here is your answer based on our knowledge base.", tokensUsed: 150 } as LLMResponse,
+    ]),
     lookupCustomer: mock.fn(customer),
     lookupOrder: mock.fn(smallOrder),
     searchKnowledgeBase: mock.fn(kbArticles),

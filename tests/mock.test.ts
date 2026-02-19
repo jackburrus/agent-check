@@ -37,6 +37,49 @@ describe("mock.fn", () => {
   });
 });
 
+describe("mock.sequence", () => {
+  test("returns values in order", () => {
+    const fn = mock.sequence(["first", "second", "third"]);
+    expect(fn()).toBe("first");
+    expect(fn()).toBe("second");
+    expect(fn()).toBe("third");
+  });
+
+  test("repeats last value when exhausted", () => {
+    const fn = mock.sequence(["only-two", "values"]);
+    expect(fn()).toBe("only-two");
+    expect(fn()).toBe("values");
+    expect(fn()).toBe("values");
+    expect(fn()).toBe("values");
+  });
+
+  test("works with single value", () => {
+    const fn = mock.sequence([42]);
+    expect(fn()).toBe(42);
+    expect(fn()).toBe(42);
+  });
+
+  test("works with objects", () => {
+    const fn = mock.sequence([
+      { intent: "question", confidence: 0.9 },
+      { message: "Here is your answer.", tokensUsed: 150 },
+    ]);
+    expect(fn()).toEqual({ intent: "question", confidence: 0.9 });
+    expect(fn()).toEqual({ message: "Here is your answer.", tokensUsed: 150 });
+  });
+
+  test("throws on empty array", () => {
+    expect(() => mock.sequence([])).toThrow(
+      "mock.sequence() requires at least one value"
+    );
+  });
+
+  test("has _isMockTool flag", () => {
+    const fn = mock.sequence(["a"]);
+    expect(fn._isMockTool).toBe(true);
+  });
+});
+
 describe("mock.forbidden", () => {
   test("throws ForbiddenToolError when called", () => {
     const fn = mock.forbidden();

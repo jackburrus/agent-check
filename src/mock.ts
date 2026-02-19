@@ -23,6 +23,20 @@ export const mock = {
     return makeMockFn(() => valueOrImpl);
   },
 
+  sequence(values: unknown[]): MockToolFn {
+    if (values.length === 0) {
+      throw new Error("mock.sequence() requires at least one value");
+    }
+    let callIndex = 0;
+    return makeMockFn(() => {
+      const value = callIndex < values.length
+        ? values[callIndex]
+        : values[values.length - 1];
+      callIndex++;
+      return value;
+    });
+  },
+
   forbidden(message?: string): MockToolFn {
     const fn = makeMockFn(function forbiddenTool(this: { _toolName?: string }) {
       throw new ForbiddenToolError(
