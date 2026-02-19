@@ -47,6 +47,28 @@ You can mock tools (fast, deterministic) or hit real ones (slow, realistic). ATL
 
 Works with OpenAI, Anthropic, local models, any agent framework, or no framework at all. ATL doesn't care how your agent is built. It cares what the agent *did*.
 
+## The Logic/Intelligence Split
+
+A common objection: *"If I mock the LLM, aren't I removing the 'AI' from the test?"*
+
+Yes. And that is the point.
+
+Agent bugs come in two flavors:
+
+1.  **Intelligence Failures:** The model hallucinated or didn't understand the user. (Solved by Evals/Real Model calls).
+2.  **Orchestration Failures:** The model understood perfectly, but your code crashed, the tool arguments were wrong, the budget was exceeded, or the safety guardrail failed. (Solved by ATL).
+
+ATL is primarily for **Orchestration Failures**.
+
+Think of a self-driving car:
+- **Evals** test the **Eyes**: *Did the camera identify the stop sign?*
+- **ATL** tests the **Brakes**: *When a stop sign is detected, did the car actually stop?*
+
+If you only test the Eyes (Evals), you might have a car that sees every stop sign but refuses to slow down because of a logic bug.
+
+### Hybrid Testing
+ATL doesn't ban real model calls. It supports "Passthrough Mocks" where you call the real LLM inside a `mock.fn()`. This lets you run 10% of your tests as "End-to-End" smoke tests to verify Intelligence, while keeping 90% of your tests as fast, deterministic Logic tests.
+
 ## Mental Model
 
 ```
@@ -101,25 +123,26 @@ The foundation that makes everything else possible.
   - **Budget:** `toBeWithinBudget`, `toBeWithinTokens`, `toBeWithinLatency`
   - **Structural:** `toComplete`, `toHaveSteps`, `toHaveRetries`
 - Bun test runner integration with automatic matcher registration
+- Full generics — `RunContext<TInput, TTools>`, `Trace<TInput, TOutput>`, type inference from agent function signatures
 - Complete example: e-commerce support agent with 24 tests
 
 This is enough for a working product. Tests run, assertions pass, CI goes green.
 
-### Phase 2: Differentiation
+### Phase 2: DX and Core Polish
 
-Features that make ATL uniquely valuable — things eval frameworks can't do.
+Make the core loop phenomenal before expanding scope.
 
-- **Policy engine** — `definePolicy()` + `toComplyWith(policy)` for declarative policy rules
+- **Sequence mocks** — `mock.sequence()` for different responses on each call to the same tool
+- **Trace debugging** — `trace.summary()` for readable output when tests fail (like RTL's `screen.debug()`)
 - **Baseline snapshots** — `toMatchBaseline()` for regression testing traces (like Jest snapshots)
-- **Cassette record/replay** — VCR-style recording of live tool calls for deterministic replay
-- **`diff()` function** — compute deltas between traces (cost change, token change, tool sequence changes)
-- **First framework adapter** — Vercel AI SDK adapter to test real agent code without rewriting it
+- **npm publish** — proper package.json exports, bundled types, ready to install
+- **Vitest support** — setup file + matcher registration for the most popular TS test runner
 
 ### Phase 3: Ecosystem
 
 Expand reach and integrate into the broader development workflow.
 
-- **Framework adapters** — OpenAI Agents SDK, LangChain/LangGraph, raw HTTP endpoints, trace importers
+- **Framework adapters** — Vercel AI SDK, OpenAI Agents SDK, LangChain/LangGraph, raw HTTP endpoints
 - **Test runner plugins** — Vitest plugin, Jest plugin (in addition to Bun)
 - **CLI tooling** — `atl --update-baselines`, `atl record`, `atl report`
 - **CI/CD integration** — GitHub Actions annotations, JUnit output

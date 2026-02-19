@@ -153,24 +153,38 @@ The agent function receives a `RunContext` with mocked tools (auto-tracked) and 
 
 ### RunContext
 
-Your agent function receives a `RunContext` with three fields:
+Your agent function receives a `RunContext<TInput, TTools>` with three fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ctx.input` | `unknown` | The input data you passed via `options.input` |
-| `ctx.tools` | `Record<string, Function>` | Auto-tracked mock tools — every call is recorded |
+| `ctx.input` | `TInput` | The input data you passed via `options.input` |
+| `ctx.tools` | `TTools` | Auto-tracked mock tools — every call is recorded |
 | `ctx.trace` | `TraceWriter` | Manual reporting: cost, tokens, steps, metadata |
+
+`RunContext` supports generics for full type safety. Define your tools as an interface and use it as a type parameter — no casting required:
+
+```ts
+interface MyTools {
+  lookupUser: (id: string) => Promise<User>;
+  sendEmail: (to: string, body: string) => Promise<void>;
+}
+
+async function myAgent(ctx: RunContext<MyInput, MyTools>) {
+  const user = await ctx.tools.lookupUser("42"); // fully typed
+  await ctx.tools.sendEmail(user.email, "Hello!"); // autocomplete works
+}
+```
 
 ### Traces
 
-A `Trace` is a frozen snapshot of everything that happened during the agent run:
+A `Trace<TInput, TOutput>` is a frozen snapshot of everything that happened during the agent run. When your agent is typed, `trace.input` and `trace.output` are typed too — no casting needed.
 
 ```ts
-interface Trace {
+interface Trace<TInput = unknown, TOutput = unknown> {
   completed: boolean;          // Did the agent finish without error?
   error?: Error;               // The error, if it threw
-  input: unknown;              // What was passed in
-  output: unknown;             // What was returned (or manually set)
+  input: TInput;               // What was passed in
+  output: TOutput;             // What was returned (or manually set)
   toolCalls: readonly ToolCall[];  // Every tool call, in order
   steps: readonly Step[];      // Manually-reported steps
   duration: number;            // Wall-clock ms
@@ -204,19 +218,19 @@ mock.forbidden("Agent should never delete accounts")
 
 ### `run(agentFn, options?)`
 
-Executes an agent function and returns a `Trace`.
+Executes an agent function and returns a `Trace`. Types are inferred from the agent function — if your agent takes `RunContext<MyInput, MyTools>` and returns `Promise<MyOutput>`, the trace is automatically typed as `Trace<MyInput, MyOutput>`.
 
 **Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `agentFn` | `(ctx: RunContext) => unknown \| Promise<unknown>` | Your agent function |
-| `options.input` | `unknown` | Input data, available as `ctx.input` |
+| `agentFn` | `(ctx: RunContext<TInput, TTools>) => TOutput \| Promise<TOutput>` | Your agent function |
+| `options.input` | `TInput` | Input data, available as `ctx.input` |
 | `options.mocks` | `Record<string, MockToolFn>` | Named mock tools |
 | `options.timeout` | `number` | Timeout in ms (default: `30000`) |
 | `options.metadata` | `Record<string, unknown>` | Metadata attached to the trace |
 
-**Returns:** `Promise<Trace>`
+**Returns:** `Promise<Trace<TInput, Awaited<TOutput>>>`
 
 ```ts
 const trace = await run(
@@ -666,7 +680,7 @@ interface TokenUsage {
 ```
 src/
   index.ts                    # Public API exports
-  types.ts                    # All TypeScript interfaces
+  types.ts                    # All TypeScript interfaces (with generics)
   run.ts                      # run() — wires mocks, timeout, error handling
   trace-builder.ts            # Mutable accumulator → frozen Trace
   mock.ts                     # mock.fn(), mock.forbidden()
@@ -689,6 +703,11 @@ tests/
     structural-matchers.test.ts
   integration/
     full-flow.test.ts         # End-to-end test of the full API
+examples/
+  support-agent/
+    types.ts                  # Domain types (Customer, Order, etc.)
+    agent.ts                  # Multi-step support agent with typed RunContext
+    agent.test.ts             # 24 tests demonstrating all ATL features
 ```
 
 ---
