@@ -1,0 +1,126 @@
+import type { Trace, ToolCall, AgentFn, RunOptions, MockToolFn } from "./types.ts";
+import { TraceBuilder } from "./trace-builder.ts";
+import { ForbiddenToolError } from "./mock.ts";
+
+const DEFAULT_TIMEOUT = 30_000;
+
+function wrapMock(
+  name: string,
+  mockFn: MockToolFn,
+  builder: TraceBuilder
+): (...args: unknown[]) => unknown {
+  return (...args: unknown[]) => {
+    const startedAt = Date.now();
+    let output: unknown;
+    let error: Error | undefined;
+
+    try {
+      output = mockFn.call({ _toolName: name }, ...args);
+    } catch (e) {
+      error = e instanceof Error ? e : new Error(String(e));
+      throw error;
+    } finally {
+      const endedAt = Date.now();
+      const call: ToolCall = {
+        name,
+        input: args.length === 1 ? args[0] : args,
+        output,
+        error,
+        duration: endedAt - startedAt,
+        startedAt,
+        endedAt,
+      };
+      builder.recordToolCall(call);
+    }
+
+    return output;
+  };
+}
+
+function wrapAsyncMock(
+  name: string,
+  mockFn: MockToolFn,
+  builder: TraceBuilder
+): (...args: unknown[]) => Promise<unknown> {
+  return async (...args: unknown[]) => {
+    const startedAt = Date.now();
+    let output: unknown;
+    let error: Error | undefined;
+
+    try {
+      output = await mockFn.call({ _toolName: name }, ...args);
+    } catch (e) {
+      error = e instanceof Error ? e : new Error(String(e));
+      throw error;
+    } finally {
+      const endedAt = Date.now();
+      const call: ToolCall = {
+        name,
+        input: args.length === 1 ? args[0] : args,
+        output,
+        error,
+        duration: endedAt - startedAt,
+        startedAt,
+        endedAt,
+      };
+      builder.recordToolCall(call);
+    }
+
+    return output;
+  };
+}
+
+export async function run(
+  agentFn: AgentFn,
+  options: RunOptions = {}
+): Promise<Trace> {
+  const { input, mocks = {}, timeout = DEFAULT_TIMEOUT, metadata = {} } = options;
+  const builder = new TraceBuilder();
+  builder.setInput(input);
+
+  for (const [key, value] of Object.entries(metadata)) {
+    builder.setMetadata(key, value);
+  }
+
+  // Wrap mocks in tracking proxies
+  const trackedTools: Record<string, (...args: unknown[]) => unknown> = {};
+  for (const [name, mockFn] of Object.entries(mocks)) {
+    if (mockFn._isForbidden) {
+      trackedTools[name] = wrapMock(name, mockFn, builder);
+    } else {
+      // Use async wrapper to handle both sync and async mock implementations
+      trackedTools[name] = wrapAsyncMock(name, mockFn, builder);
+    }
+  }
+
+  const writer = builder.writer();
+  const ctx = { input, tools: trackedTools, trace: writer };
+
+  const execute = async () => {
+    try {
+      const result = await agentFn(ctx);
+      builder.setCompleted(true);
+      if (!builder.outputOverridden) {
+        builder.setOutput(result);
+      }
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      builder.setError(error);
+      builder.setCompleted(false);
+    }
+  };
+
+  // Race against timeout
+  const timeoutPromise = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), timeout)
+  );
+
+  const result = await Promise.race([execute(), timeoutPromise]);
+
+  if (result === "timeout") {
+    builder.setCompleted(false);
+    builder.setError(new Error(`Agent timed out after ${timeout}ms`));
+  }
+
+  return builder.build();
+}
