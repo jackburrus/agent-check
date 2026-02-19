@@ -208,6 +208,12 @@ mock.fn({ id: "123", name: "Alice" })
 // Dynamic implementation — receives the call arguments
 mock.fn((input) => ({ id: input.id, name: "Computed" }))
 
+// Sequence — different value on each call, repeats the last when exhausted
+mock.sequence([
+  { intent: "question", confidence: 0.95 },
+  { message: "Here is your answer.", tokensUsed: 150 },
+])
+
 // Forbidden — throws immediately if called
 mock.forbidden("Agent should never delete accounts")
 ```
@@ -277,6 +283,21 @@ mock.fn((input) => ({ id: input.id, name: "Computed" }))
 ```
 
 **Note:** ATL distinguishes static values from implementations by checking `typeof`. If you pass a function, it's used as the implementation. If you pass anything else, it's returned as-is.
+
+---
+
+### `mock.sequence(values)`
+
+Creates a mock that returns a different value on each call. When all values are exhausted, the last value is repeated. This is ideal for tools called multiple times with different expected responses (e.g. an LLM called once for classification, then again for answer generation).
+
+```ts
+mock.sequence([
+  { intent: "question", confidence: 0.95 },  // first call
+  { message: "Here is your answer." },        // second call and beyond
+])
+```
+
+**Requires** at least one value — `mock.sequence([])` throws.
 
 ---
 

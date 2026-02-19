@@ -124,6 +124,7 @@ The foundation that makes everything else possible.
   - **Structural:** `toComplete`, `toHaveSteps`, `toHaveRetries`
 - Bun test runner integration with automatic matcher registration
 - Full generics — `RunContext<TInput, TTools>`, `Trace<TInput, TOutput>`, type inference from agent function signatures
+- `mock.sequence()` — ordered multi-call responses, repeats last value when exhausted
 - Complete example: e-commerce support agent with 24 tests
 
 This is enough for a working product. Tests run, assertions pass, CI goes green.
@@ -132,7 +133,6 @@ This is enough for a working product. Tests run, assertions pass, CI goes green.
 
 Make the core loop phenomenal before expanding scope.
 
-- **Sequence mocks** — `mock.sequence()` for different responses on each call to the same tool
 - **Trace debugging** — `trace.summary()` for readable output when tests fail (like RTL's `screen.debug()`)
 - **Baseline snapshots** — `toMatchBaseline()` for regression testing traces (like Jest snapshots)
 - **npm publish** — proper package.json exports, bundled types, ready to install
