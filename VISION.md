@@ -1,0 +1,163 @@
+# Vision
+
+> "The more your tests resemble the way your agents are used, the more confidence they give you."
+
+## The Problem
+
+You're building agents. They call tools, make decisions, cost money. Every prompt change, model upgrade, or tool update could break something.
+
+You need tests. But not "eval framework" tests with YAML configs and dashboards. You need tests that live in your codebase, run in CI, and feel like the unit tests you already write.
+
+Today's options don't fit:
+
+- **Eval frameworks** (Promptfoo, Braintrust) live in YAML configs and separate dashboards — not in your test suite.
+- **LM evaluators** focus on prompt/output quality, not orchestration logic.
+- **Observability tools** (LangSmith, Arize) are built for production monitoring, not development testing.
+- **Benchmark suites** compare models. They don't prevent regressions in *your* agent.
+
+None of them answer the questions that actually matter: Did the agent call the right tools? In the right order? Did it stay within budget? Did it follow policy? Nobody cares about the raw token probabilities.
+
+## The Insight
+
+React Testing Library changed frontend testing with one idea: **query the DOM the way a user sees it.** Stop testing implementation details. Test behavior.
+
+ATL applies the same insight to agents: **assert on the trace the way a stakeholder audits it.** Stop asserting on prose. Assert on what the agent *did*.
+
+If you're writing `expect(output).toContain("password reset")`, you're testing the model, not the agent. ATL tests the agent.
+
+## Core Opinions
+
+### 1. Test behavior, not text
+
+Assert on tool calls, decisions, costs, and policy compliance — not on prose. The LLM is a tool your agent calls. Mock it like any other tool. Test the orchestration logic, not model outputs.
+
+### 2. Tests live next to your code
+
+Not in a YAML config. Not in a dashboard. In your test files, with your test runner, in your CI. `agent.test.ts` sits next to `agent.ts`.
+
+### 3. Traces are first-class
+
+Every `run()` produces a structured `Trace` — the equivalent of RTL's `screen`. The trace is the primary interface between your test and the system under test. It captures tool calls, steps, cost, tokens, timing, metadata, and output.
+
+### 4. Mocks are cheap, not mandatory
+
+You can mock tools (fast, deterministic) or hit real ones (slow, realistic). ATL doesn't force either. But it makes mocking trivially easy — `mock.fn()` for tool calls, `mock.forbidden()` for policy guardrails.
+
+### 5. No vendor lock-in
+
+Works with OpenAI, Anthropic, local models, any agent framework, or no framework at all. ATL doesn't care how your agent is built. It cares what the agent *did*.
+
+## Mental Model
+
+```
+Agent Code  →  Runner  →  Trace  →  Assertions
+    ↑                        ↑
+  your code            what happened
+                    (tool calls, steps,
+                     tokens, cost, timing)
+```
+
+Mapping to React Testing Library:
+
+| RTL | ATL |
+|-----|-----|
+| `render()` | `run()` — executes the agent in a controlled harness |
+| `screen` | `Trace` — the primary query interface for assertions |
+| `getByRole()`, `toBeInTheDocument()` | `toHaveCalledTool()`, `toComplete()` — semantic assertions on behavior |
+| MSW (network mocks) | `mock.fn()`, `mock.forbidden()` — tool doubles |
+
+## What ATL Is Not
+
+- **Not an observability platform.** No dashboards, no production monitoring. Use Arize/Datadog for that.
+- **Not a prompt playground.** You're not A/B testing prose. You're testing agent behavior.
+- **Not a benchmark suite.** You're not comparing models. You're preventing regressions in *your* agent.
+- **Not framework-specific.** Works with any agent framework or none at all.
+
+## Competitive Positioning
+
+| | ATL | Promptfoo | Braintrust | LangSmith |
+|---|---|---|---|---|
+| **Primary interface** | TypeScript tests | YAML config | Dashboard | Dashboard |
+| **Lives where** | Your test files | Separate config | Cloud platform | Cloud platform |
+| **Feels like** | Jest / Vitest | CLI tool | Analytics product | DevOps platform |
+| **Tests what** | Agent behavior | Prompt outputs | Model quality | Agent traces |
+| **Vendor lock-in** | None | None | Some | LangChain |
+| **Setup time** | `npm install` | `npx init` + YAML | Account + SDK | Account + SDK |
+| **Target user** | TS/JS devs building agents | ML/AI engineers | ML teams | LangChain users |
+
+The one-line pitch: **No YAML. No dashboard. Just tests.**
+
+## Roadmap
+
+### Phase 1: Core Loop (Done)
+
+The foundation that makes everything else possible.
+
+- `run()` — execute an agent function in a controlled harness
+- `Trace` type + `TraceBuilder` — structured capture of everything that happened
+- `mock.fn()` and `mock.forbidden()` — tool mocking and policy guardrails
+- 10 matchers across three categories:
+  - **Tool:** `toHaveCalledTool`, `toHaveCalledToolWith`, `toHaveToolCallCount`, `toHaveToolOrder`
+  - **Budget:** `toBeWithinBudget`, `toBeWithinTokens`, `toBeWithinLatency`
+  - **Structural:** `toComplete`, `toHaveSteps`, `toHaveRetries`
+- Bun test runner integration with automatic matcher registration
+- Complete example: e-commerce support agent with 24 tests
+
+This is enough for a working product. Tests run, assertions pass, CI goes green.
+
+### Phase 2: Differentiation
+
+Features that make ATL uniquely valuable — things eval frameworks can't do.
+
+- **Policy engine** — `definePolicy()` + `toComplyWith(policy)` for declarative policy rules
+- **Baseline snapshots** — `toMatchBaseline()` for regression testing traces (like Jest snapshots)
+- **Cassette record/replay** — VCR-style recording of live tool calls for deterministic replay
+- **`diff()` function** — compute deltas between traces (cost change, token change, tool sequence changes)
+- **First framework adapter** — Vercel AI SDK adapter to test real agent code without rewriting it
+
+### Phase 3: Ecosystem
+
+Expand reach and integrate into the broader development workflow.
+
+- **Framework adapters** — OpenAI Agents SDK, LangChain/LangGraph, raw HTTP endpoints, trace importers
+- **Test runner plugins** — Vitest plugin, Jest plugin (in addition to Bun)
+- **CLI tooling** — `atl --update-baselines`, `atl record`, `atl report`
+- **CI/CD integration** — GitHub Actions annotations, JUnit output
+- **LLM judge matchers** — `toBeHelpful()`, `toMatchRubric()`, `toAnswerQuestion()` for optional quality assertions
+
+### Phase 4: Advanced Mocking
+
+Sophisticated mock capabilities for complex agent testing scenarios.
+
+- **Sequence mocks** — different responses on each call
+- **Conditional mocks** — responses based on input patterns
+- **Delayed mocks** — simulate slow tools and test timeout handling
+- **Failing mocks** — simulate tool errors and test recovery
+- **PII detection** — `not.toContainPII()` for data safety assertions
+
+## Package Strategy
+
+```
+agent-testing-library           ← core library (run, trace, matchers, mocks)
+@agent-testing-library/jest     ← jest setup + reporter
+@agent-testing-library/vitest   ← vitest plugin + reporter
+@agent-testing-library/cli      ← CLI tools (baselines, recording, reports)
+```
+
+Install with one command. Work immediately. No accounts, no API keys, no config files.
+
+```bash
+npm install -D agent-testing-library
+```
+
+## Target User
+
+A TypeScript/JavaScript developer building agents. They're already comfortable with Jest or Vitest. They want to test their agent's behavior in CI — not set up a cloud platform. They want tests that are fast, deterministic, and cheap to run. They don't want to learn a new DSL or configure YAML. They want to write `expect(trace).toHaveCalledTool("search")` and move on.
+
+## Design Principles
+
+1. **Familiar over novel.** Use patterns developers already know. `expect()`, `mock.fn()`, `describe/test`. No new syntax to learn.
+2. **Fast over comprehensive.** Mocked tests run in milliseconds. Real API calls are opt-in, not the default.
+3. **Behavioral over textual.** What did the agent *do*? Not what did it *say*. Tool calls over token probabilities.
+4. **Simple over configurable.** Sensible defaults. Zero config to start. Progressive disclosure for advanced features.
+5. **Library over platform.** A dependency in your `package.json`, not a service to sign up for.
