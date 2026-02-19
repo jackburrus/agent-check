@@ -20,7 +20,7 @@ describe("run()", () => {
   test("tracks mock tool calls", async () => {
     const trace = await run(
       async (ctx) => {
-        const user = await ctx.tools.lookupUser({ id: "42" });
+        const user = await ctx.tools.lookupUser!({ id: "42" });
         return { user };
       },
       {
@@ -41,8 +41,8 @@ describe("run()", () => {
   test("tracks multiple tool calls", async () => {
     const trace = await run(
       async (ctx) => {
-        const user = await ctx.tools.lookupUser({ id: "1" });
-        const prefs = await ctx.tools.getPreferences({ userId: "1" });
+        const user = await ctx.tools.lookupUser!({ id: "1" });
+        const prefs = await ctx.tools.getPreferences!({ userId: "1" });
         return { user, prefs };
       },
       {
@@ -71,7 +71,7 @@ describe("run()", () => {
   test("forbidden tool records call and sets error", async () => {
     const trace = await run(
       async (ctx) => {
-        ctx.tools.deleteUser({ id: "42" });
+        ctx.tools.deleteUser!({ id: "42" });
       },
       {
         mocks: {
@@ -148,7 +148,7 @@ describe("run()", () => {
   test("dynamic mock implementation receives input", async () => {
     const trace = await run(
       async (ctx) => {
-        return await ctx.tools.multiply(5);
+        return await ctx.tools.multiply!(5);
       },
       {
         mocks: {

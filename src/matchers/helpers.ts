@@ -1,6 +1,6 @@
 import type { Trace } from "../types.ts";
 
-export function assertIsTrace(value: unknown): asserts value is Trace {
+export function assertIsTrace(value: unknown): asserts value is Trace<unknown, unknown> {
   if (
     typeof value !== "object" ||
     value === null ||

@@ -1,4 +1,4 @@
-import type { Trace, ToolCall, AgentFn, RunOptions, MockToolFn } from "./types.ts";
+import type { Trace, ToolCall, RunContext, RunOptions, MockToolFn } from "./types.ts";
 import { TraceBuilder } from "./trace-builder.ts";
 import { ForbiddenToolError } from "./mock.ts";
 
@@ -70,10 +70,14 @@ function wrapAsyncMock(
   };
 }
 
-export async function run(
-  agentFn: AgentFn,
-  options: RunOptions = {}
-): Promise<Trace> {
+export async function run<
+  TInput = unknown,
+  TTools = Record<string, (...args: any[]) => any>,
+  TOutput = unknown,
+>(
+  agentFn: (ctx: RunContext<TInput, TTools>) => TOutput | Promise<TOutput>,
+  options: RunOptions<TInput> = {} as RunOptions<TInput>,
+): Promise<Trace<TInput, Awaited<TOutput>>> {
   const { input, mocks = {}, timeout = DEFAULT_TIMEOUT, metadata = {} } = options;
   const builder = new TraceBuilder();
   builder.setInput(input);
@@ -94,7 +98,7 @@ export async function run(
   }
 
   const writer = builder.writer();
-  const ctx = { input, tools: trackedTools, trace: writer };
+  const ctx = { input, tools: trackedTools, trace: writer } as RunContext<TInput, TTools>;
 
   const execute = async () => {
     try {
@@ -122,5 +126,5 @@ export async function run(
     builder.setError(new Error(`Agent timed out after ${timeout}ms`));
   }
 
-  return builder.build();
+  return builder.build() as Trace<TInput, Awaited<TOutput>>;
 }

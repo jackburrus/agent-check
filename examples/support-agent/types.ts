@@ -1,5 +1,3 @@
-import type { RunContext } from "../../src/index.ts";
-
 // --- Domain Types ---
 
 export interface Customer {
@@ -71,10 +69,3 @@ export interface SupportInput {
   message: string;
   orderId?: string;
 }
-
-// --- Typed Context ---
-
-export type SupportContext = RunContext & {
-  input: SupportInput;
-  tools: SupportTools;
-};

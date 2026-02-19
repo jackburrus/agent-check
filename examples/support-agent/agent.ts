@@ -10,9 +10,10 @@ import type {
 
 const MAX_AUTO_REFUND = 100;
 
-export async function supportAgent(ctx: RunContext): Promise<AgentResult> {
-  const input = ctx.input as SupportInput;
-  const tools = ctx.tools as unknown as SupportTools;
+export async function supportAgent(
+  ctx: RunContext<SupportInput, SupportTools>,
+): Promise<AgentResult> {
+  const { input, tools } = ctx;
 
   ctx.trace.setMetadata("model", "gpt-4o-mini");
 

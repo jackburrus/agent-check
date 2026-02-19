@@ -5,8 +5,8 @@ describe("Integration: full agent flow", () => {
   test("complete agent run with mocks, cost, tokens, and all matchers", async () => {
     const trace = await run(
       async (ctx) => {
-        const user = await ctx.tools.lookupUser({ userId: ctx.input as string });
-        const prefs = await ctx.tools.getPreferences({ userId: (user as any).id });
+        const user = await ctx.tools.lookupUser!({ userId: ctx.input as string });
+        const prefs = await ctx.tools.getPreferences!({ userId: (user as any).id });
 
         ctx.trace.setCost(0.003);
         ctx.trace.setTokens({ input: 150, output: 50 });
@@ -96,7 +96,7 @@ describe("Integration: full agent flow", () => {
   test("forbidden tool produces error trace with recorded call", async () => {
     const trace = await run(
       async (ctx) => {
-        ctx.tools.nuke({ target: "everything" });
+        ctx.tools.nuke!({ target: "everything" });
       },
       {
         mocks: {
@@ -125,7 +125,7 @@ describe("Integration: full agent flow", () => {
   test("dynamic mock receives input", async () => {
     const trace = await run(
       async (ctx) => {
-        const result = await ctx.tools.double(5);
+        const result = await ctx.tools.double!(5);
         return result;
       },
       {

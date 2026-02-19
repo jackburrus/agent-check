@@ -23,11 +23,11 @@ export interface TokenUsage {
   total?: number;
 }
 
-export interface Trace {
+export interface Trace<TInput = unknown, TOutput = unknown> {
   completed: boolean;
   error?: Error;
-  input: unknown;
-  output: unknown;
+  input: TInput;
+  output: TOutput;
   toolCalls: readonly ToolCall[];
   steps: readonly Step[];
   duration: number;
@@ -71,17 +71,24 @@ export type MockToolFn = ((...args: unknown[]) => unknown) & {
   _isForbidden?: boolean;
 };
 
-export interface RunOptions {
-  input?: unknown;
+export interface RunOptions<TInput = unknown> {
+  input?: TInput;
   mocks?: Record<string, MockToolFn>;
   timeout?: number;
   metadata?: Record<string, unknown>;
 }
 
-export interface RunContext {
-  input: unknown;
-  tools: Record<string, (...args: unknown[]) => unknown>;
+export interface RunContext<
+  TInput = unknown,
+  TTools = Record<string, (...args: any[]) => any>,
+> {
+  input: TInput;
+  tools: TTools;
   trace: TraceWriter;
 }
 
-export type AgentFn = (ctx: RunContext) => unknown | Promise<unknown>;
+export type AgentFn<
+  TInput = unknown,
+  TTools = Record<string, (...args: any[]) => any>,
+  TOutput = unknown,
+> = (ctx: RunContext<TInput, TTools>) => TOutput | Promise<TOutput>;
