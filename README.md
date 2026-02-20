@@ -1,8 +1,8 @@
-# Agent Testing Library (ATL)
+# agent-check
 
 **Test agent behavior, not model outputs.**
 
-ATL is a testing library for AI agents — inspired by [React Testing Library](https://testing-library.com/). Instead of asserting on prose or chat completions, you assert on what the agent *did*: which tools it called, in what order, how much it cost, and whether it respected policy constraints.
+agent-check is a testing library for AI agents — inspired by [React Testing Library](https://testing-library.com/). Instead of asserting on prose or chat completions, you assert on what the agent *did*: which tools it called, in what order, how much it cost, and whether it respected policy constraints.
 
 ```ts
 import { test, expect } from "bun:test";
@@ -46,7 +46,9 @@ test("agent greets the user by name", async () => {
 - [API Reference](#api-reference)
   - [`run(agentFn, options?)`](#runagentfn-options)
   - [`mock.fn(valueOrImpl?)`](#mockfnvalueorimpl)
+  - [`mock.sequence(values)`](#mocksequencevalues)
   - [`mock.forbidden(message?)`](#mockforbiddenmessage)
+  - [`ForbiddenToolError`](#forbiddentoolerror)
   - [TraceWriter](#tracewriter)
   - [TurnHandle](#turnhandle)
 - [Matchers](#matchers)
@@ -76,18 +78,11 @@ test("agent greets the user by name", async () => {
 bun install agent-check
 ```
 
-ATL is designed for [Bun](https://bun.sh)'s test runner. It extends `expect` with custom matchers automatically via a preload file.
+agent-check is designed for [Bun](https://bun.sh)'s test runner. It extends `expect` with custom matchers automatically via a preload file.
 
 ### Setup
 
-ATL auto-registers its matchers when imported. If you're using the library from source, add the preload to your `bunfig.toml`:
-
-```toml
-[test]
-preload = ["./src/setup.ts"]
-```
-
-If you install ATL as a package, add:
+agent-check auto-registers its matchers when imported. Add the preload to your `bunfig.toml`:
 
 ```toml
 [test]
@@ -224,7 +219,7 @@ interface Turn {
 
 ### Mocks
 
-Mocks simulate the tools your agent calls. ATL wraps each mock in a tracking proxy that records tool name, input, output, timing, and errors — automatically.
+Mocks simulate the tools your agent calls. agent-check wraps each mock in a tracking proxy that records tool name, input, output, timing, and errors — automatically.
 
 ```ts
 // Static return value — always returns the same thing
@@ -307,7 +302,7 @@ mock.fn(null)
 mock.fn((input) => ({ id: input.id, name: "Computed" }))
 ```
 
-**Note:** ATL distinguishes static values from implementations by checking `typeof`. If you pass a function, it's used as the implementation. If you pass anything else, it's returned as-is.
+**Note:** agent-check distinguishes static values from implementations by checking `typeof`. If you pass a function, it's used as the implementation. If you pass anything else, it's returned as-is.
 
 ---
 
@@ -342,9 +337,28 @@ If a forbidden mock is called:
 
 ---
 
+### `ForbiddenToolError`
+
+A custom error class thrown when a `mock.forbidden()` tool is called. Exported from the main entry point so you can use it in `instanceof` checks.
+
+```ts
+import { ForbiddenToolError } from "agent-check";
+
+if (trace.error instanceof ForbiddenToolError) {
+  console.log("Agent called a forbidden tool");
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `"ForbiddenToolError"` | Error name for identification |
+| `message` | `string` | Custom message or default `'Forbidden tool "toolName" was called'` |
+
+---
+
 ### TraceWriter
 
-The `TraceWriter` is available as `ctx.trace` inside your agent function. Use it to report things ATL can't automatically observe — like LLM API costs, token usage, or logical turns.
+The `TraceWriter` is available as `ctx.trace` inside your agent function. Use it to report things agent-check can't automatically observe — like LLM API costs, token usage, or logical turns.
 
 | Method | Description |
 |--------|-------------|
@@ -392,7 +406,7 @@ Tool calls added via `turn.addToolCall()` appear both in the turn's `toolCalls` 
 
 ## Matchers
 
-ATL extends Bun's `expect` with custom matchers. They're registered automatically via the preload file.
+agent-check extends Bun's `expect` with custom matchers. They're registered automatically via the preload file.
 
 All matchers work with `.not` negation:
 
@@ -641,7 +655,7 @@ test("agent searches before responding", async () => {
         search: mock.fn([{ title: "Result 1" }]),
         summarize: mock.fn("Here's what I found..."),
       },
-      input: "What is ATL?",
+      input: "What is agent-check?",
     }
   );
 

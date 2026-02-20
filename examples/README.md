@@ -1,6 +1,6 @@
 # Examples
 
-Three complete examples demonstrating how to test agents with ATL.
+Three complete examples demonstrating how to test agents with agent-check.
 
 ## Running Examples
 

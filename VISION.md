@@ -21,9 +21,9 @@ None of them answer the questions that actually matter: Did the agent call the r
 
 React Testing Library changed frontend testing with one idea: **query the DOM the way a user sees it.** Stop testing implementation details. Test behavior.
 
-ATL applies the same insight to agents: **assert on the trace the way a stakeholder audits it.** Stop asserting on prose. Assert on what the agent *did*.
+agent-check applies the same insight to agents: **assert on the trace the way a stakeholder audits it.** Stop asserting on prose. Assert on what the agent *did*.
 
-If you're writing `expect(output).toContain("password reset")`, you're testing the model, not the agent. ATL tests the agent.
+If you're writing `expect(output).toContain("password reset")`, you're testing the model, not the agent. agent-check tests the agent.
 
 ## Core Opinions
 
@@ -41,19 +41,19 @@ Every `run()` produces a structured `Trace` — the equivalent of RTL's `screen`
 
 ### 4. Turn-based model mirrors reality
 
-Real agents run in loops: LLM call → tool calls → repeat. ATL's turn-based trace model mirrors this directly. Each `Turn` captures one iteration of the loop — its tool calls, response text, and metadata. This makes traces legible and assertions natural.
+Real agents run in loops: LLM call → tool calls → repeat. agent-check's turn-based trace model mirrors this directly. Each `Turn` captures one iteration of the loop — its tool calls, response text, and metadata. This makes traces legible and assertions natural.
 
 ### 5. Baselines catch regressions
 
-When you change a prompt, upgrade a model, or update a tool, the behavioral "shape" of the agent might change — different tools get called, the number of turns shifts, cost increases. ATL's baseline system captures the structural envelope of a known-good trace and detects drift automatically.
+When you change a prompt, upgrade a model, or update a tool, the behavioral "shape" of the agent might change — different tools get called, the number of turns shifts, cost increases. agent-check's baseline system captures the structural envelope of a known-good trace and detects drift automatically.
 
 ### 6. Mocks are cheap, not mandatory
 
-You can mock tools (fast, deterministic) or hit real ones (slow, realistic). ATL doesn't force either. But it makes mocking trivially easy — `mock.fn()` for tool calls, `mock.forbidden()` for policy guardrails.
+You can mock tools (fast, deterministic) or hit real ones (slow, realistic). agent-check doesn't force either. But it makes mocking trivially easy — `mock.fn()` for tool calls, `mock.forbidden()` for policy guardrails.
 
 ### 7. No vendor lock-in
 
-Works with OpenAI, Anthropic, local models, any agent framework, or no framework at all. ATL doesn't care how your agent is built. It cares what the agent *did*.
+Works with OpenAI, Anthropic, local models, any agent framework, or no framework at all. agent-check doesn't care how your agent is built. It cares what the agent *did*.
 
 ## The Logic/Intelligence Split
 
@@ -64,18 +64,18 @@ Yes. And that is the point.
 Agent bugs come in two flavors:
 
 1.  **Intelligence Failures:** The model hallucinated or didn't understand the user. (Solved by Evals/Real Model calls).
-2.  **Orchestration Failures:** The model understood perfectly, but your code crashed, the tool arguments were wrong, the budget was exceeded, or the safety guardrail failed. (Solved by ATL).
+2.  **Orchestration Failures:** The model understood perfectly, but your code crashed, the tool arguments were wrong, the budget was exceeded, or the safety guardrail failed. (Solved by agent-check).
 
-ATL is primarily for **Orchestration Failures**.
+agent-check is primarily for **Orchestration Failures**.
 
 Think of a self-driving car:
 - **Evals** test the **Eyes**: *Did the camera identify the stop sign?*
-- **ATL** tests the **Brakes**: *When a stop sign is detected, did the car actually stop?*
+- **agent-check** tests the **Brakes**: *When a stop sign is detected, did the car actually stop?*
 
 If you only test the Eyes (Evals), you might have a car that sees every stop sign but refuses to slow down because of a logic bug.
 
 ### Hybrid Testing
-ATL doesn't ban real model calls. It supports "Passthrough Mocks" where you call the real LLM inside a `mock.fn()`. This lets you run 10% of your tests as "End-to-End" smoke tests to verify Intelligence, while keeping 90% of your tests as fast, deterministic Logic tests.
+agent-check doesn't ban real model calls. It supports "Passthrough Mocks" where you call the real LLM inside a `mock.fn()`. This lets you run 10% of your tests as "End-to-End" smoke tests to verify Intelligence, while keeping 90% of your tests as fast, deterministic Logic tests.
 
 ## Mental Model
 
@@ -89,7 +89,7 @@ Agent Code  →  Runner  →  Trace  →  Assertions
 
 Mapping to React Testing Library:
 
-| RTL | ATL |
+| RTL | agent-check |
 |-----|-----|
 | `render()` | `run()` — executes the agent in a controlled harness |
 | `screen` | `Trace` — the primary query interface for assertions |
@@ -98,7 +98,7 @@ Mapping to React Testing Library:
 | Jest snapshots | `toMatchBaseline()` — structural regression detection |
 | `screen.debug()` | `printTrace()` — human-readable trace output for debugging |
 
-## What ATL Is Not
+## What agent-check Is Not
 
 - **Not an observability platform.** No dashboards, no production monitoring. Use Arize/Datadog for that.
 - **Not a prompt playground.** You're not A/B testing prose. You're testing agent behavior.
@@ -107,7 +107,7 @@ Mapping to React Testing Library:
 
 ## Competitive Positioning
 
-| | ATL | Promptfoo | Braintrust | LangSmith |
+| | agent-check | Promptfoo | Braintrust | LangSmith |
 |---|---|---|---|---|
 | **Primary interface** | TypeScript tests | YAML config | Dashboard | Dashboard |
 | **Lives where** | Your test files | Separate config | Cloud platform | Cloud platform |
@@ -139,7 +139,7 @@ The foundation that makes everything else possible.
 
 ### Phase 2: Turn-Based Traces, Baselines, and Trace I/O (Done)
 
-The redesign that makes ATL genuinely useful for real agent development.
+The redesign that makes agent-check genuinely useful for real agent development.
 
 - **Turn-based trace model** — `Turn` replaces `Step`, mirrors how real agent loops work (LLM call → tool calls → repeat). Turns auto-increment, have optional labels, capture response text.
 - **`stopReason`** — `"converged" | "maxTurns" | "error" | "timeout"` replaces the boolean `completed` flag, giving precise information about why the agent stopped.
