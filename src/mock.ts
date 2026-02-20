@@ -1,4 +1,4 @@
-import type { MockToolFn } from "./types.ts";
+import type { MockToolFn } from "./types.js";
 
 export class ForbiddenToolError extends Error {
   constructor(toolName: string, message?: string) {

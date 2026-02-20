@@ -1,4 +1,4 @@
-import { assertIsTrace } from "./helpers.ts";
+import { assertIsTrace } from "./helpers.js";
 
 export function toConverge(trace: unknown) {
   assertIsTrace(trace);

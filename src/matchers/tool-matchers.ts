@@ -1,5 +1,5 @@
-import type { Trace } from "../types.ts";
-import { assertIsTrace } from "./helpers.ts";
+import type { Trace } from "../types.js";
+import { assertIsTrace } from "./helpers.js";
 
 export function toHaveCalledTool(trace: unknown, toolName: string) {
   assertIsTrace(trace);

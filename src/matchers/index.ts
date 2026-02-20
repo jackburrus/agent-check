@@ -3,40 +3,40 @@ export {
   toHaveCalledToolWith,
   toHaveToolCallCount,
   toHaveToolOrder,
-} from "./tool-matchers.ts";
+} from "./tool-matchers.js";
 
 export {
   toBeWithinBudget,
   toBeWithinTokens,
   toBeWithinLatency,
-} from "./budget-matchers.ts";
+} from "./budget-matchers.js";
 
 export {
   toConverge,
   toHaveTurns,
   toHaveStopReason,
-} from "./structural-matchers.ts";
+} from "./structural-matchers.js";
 
 import {
   toHaveCalledTool,
   toHaveCalledToolWith,
   toHaveToolCallCount,
   toHaveToolOrder,
-} from "./tool-matchers.ts";
+} from "./tool-matchers.js";
 
 import {
   toBeWithinBudget,
   toBeWithinTokens,
   toBeWithinLatency,
-} from "./budget-matchers.ts";
+} from "./budget-matchers.js";
 
 import {
   toConverge,
   toHaveTurns,
   toHaveStopReason,
-} from "./structural-matchers.ts";
+} from "./structural-matchers.js";
 
-import { toMatchBaseline } from "./baseline-matchers.ts";
+import { toMatchBaseline } from "./baseline-matchers.js";
 
 export const allMatchers = {
   toHaveCalledTool,

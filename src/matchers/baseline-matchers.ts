@@ -1,6 +1,6 @@
-import { assertIsTrace } from "./helpers.ts";
-import { compareBaseline } from "../baseline.ts";
-import type { Baseline } from "../types.ts";
+import { assertIsTrace } from "./helpers.js";
+import { compareBaseline } from "../baseline.js";
+import type { Baseline } from "../types.js";
 
 export function toMatchBaseline(trace: unknown, baseline: Baseline) {
   assertIsTrace(trace);

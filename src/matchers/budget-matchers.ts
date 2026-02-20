@@ -1,4 +1,4 @@
-import { assertIsTrace } from "./helpers.ts";
+import { assertIsTrace } from "./helpers.js";
 
 export function toBeWithinBudget(trace: unknown, opts: { maxUsd: number }) {
   assertIsTrace(trace);

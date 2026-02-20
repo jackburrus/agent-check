@@ -1,4 +1,4 @@
-import type { Trace, ToolCall, Turn, TokenUsage } from "./types.ts";
+import type { Trace, ToolCall, Turn, TokenUsage } from "./types.js";
 
 interface SerializedError {
   __isError: true;

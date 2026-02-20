@@ -1,6 +1,6 @@
-import type { Trace, ToolCall, RunContext, RunOptions, MockToolFn } from "./types.ts";
-import { TraceBuilder } from "./trace-builder.ts";
-import { ForbiddenToolError } from "./mock.ts";
+import type { Trace, ToolCall, RunContext, RunOptions, MockToolFn } from "./types.js";
+import { TraceBuilder } from "./trace-builder.js";
+import { ForbiddenToolError } from "./mock.js";
 
 const DEFAULT_TIMEOUT = 30_000;
 

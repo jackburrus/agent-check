@@ -1,4 +1,4 @@
-import type { Trace, Baseline, BaselineDiff } from "./types.ts";
+import type { Trace, Baseline, BaselineDiff } from "./types.js";
 
 export function extractBaseline(trace: Trace): Baseline {
   const toolNames = trace.toolCalls.map((tc) => tc.name);

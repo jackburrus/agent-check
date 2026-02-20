@@ -1,13 +1,13 @@
 // Public API
-export { run } from "./run.ts";
-export { mock, ForbiddenToolError } from "./mock.ts";
-export { allMatchers } from "./matchers/index.ts";
+export { run } from "./run.js";
+export { mock, ForbiddenToolError } from "./mock.js";
+export { allMatchers } from "./matchers/index.js";
 
 // Baseline
-export { extractBaseline, compareBaseline, saveBaseline, loadBaseline, updateBaseline } from "./baseline.ts";
+export { extractBaseline, compareBaseline, saveBaseline, loadBaseline, updateBaseline } from "./baseline.js";
 
 // Trace I/O
-export { saveTrace, loadTrace, printTrace } from "./trace-io.ts";
+export { saveTrace, loadTrace, printTrace } from "./trace-io.js";
 
 // Types
 export type {
@@ -23,4 +23,4 @@ export type {
   MockToolFn,
   Baseline,
   BaselineDiff,
-} from "./types.ts";
+} from "./types.js";

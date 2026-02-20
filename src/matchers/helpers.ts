@@ -1,4 +1,4 @@
-import type { Trace } from "../types.ts";
+import type { Trace } from "../types.js";
 
 export function assertIsTrace(value: unknown): asserts value is Trace<unknown, unknown> {
   if (

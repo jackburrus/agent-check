@@ -1,4 +1,4 @@
-import type { Trace, TokenUsage, Baseline } from "./types.ts";
+import type { Trace, TokenUsage, Baseline } from "./types.js";
 
 declare module "bun:test" {
   interface Matchers<T> {

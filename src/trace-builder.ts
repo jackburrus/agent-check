@@ -5,7 +5,7 @@ import type {
   TokenUsage,
   TraceWriter,
   TurnHandle,
-} from "./types.ts";
+} from "./types.js";
 
 export class TraceBuilder {
   private _converged = false;

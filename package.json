@@ -1,14 +1,48 @@
 {
   "name": "agent-testing-library",
   "version": "0.1.0",
-  "module": "src/index.ts",
+  "description": "A testing library for AI agents — trace tool calls, assert on behavior, and track baselines",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./setup": "./src/setup.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./setup": {
+      "types": "./dist/setup.d.ts",
+      "import": "./dist/setup.js"
+    }
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "bun test"
+    "build": "bun scripts/build.ts",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "agent",
+    "testing",
+    "ai",
+    "llm",
+    "trace",
+    "tool-calls",
+    "baseline",
+    "bun"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agent-testing-library/agent-testing-library"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest"
