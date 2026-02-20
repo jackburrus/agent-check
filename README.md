@@ -917,6 +917,8 @@ src/
     budget-matchers.ts        # toBeWithinBudget, toBeWithinTokens, etc.
     structural-matchers.ts    # toConverge, toHaveTurns, toHaveStopReason
     baseline-matchers.ts      # toMatchBaseline
+scripts/
+  build.ts                    # Bun.build() + tsc declaration generation
 tests/
   helpers.ts                  # buildTrace(), buildToolCall(), buildTurn() factories
   trace-builder.test.ts
@@ -932,10 +934,9 @@ tests/
   integration/
     full-flow.test.ts         # End-to-end test of the full API
 examples/
-  support-agent/
-    types.ts                  # Domain types (Customer, Order, etc.)
-    agent.ts                  # Multi-turn support agent with typed RunContext
-    agent.test.ts             # 27 tests demonstrating all ATL features
+  support-agent/              # Multi-turn e-commerce support agent
+  rag-pipeline/               # Retrieval-augmented generation pipeline
+  code-review-agent/          # Automated code review with security scanning
 ```
 
 ---

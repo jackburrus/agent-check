@@ -136,7 +136,6 @@ The foundation that makes everything else possible.
 - Bun test runner integration with automatic matcher registration
 - Full generics — `RunContext<TInput, TTools>`, `Trace<TInput, TOutput>`, type inference from agent function signatures
 - `mock.sequence()` — ordered multi-call responses, repeats last value when exhausted
-- Complete example: e-commerce support agent with 27 tests
 
 ### Phase 2: Turn-Based Traces, Baselines, and Trace I/O (Done)
 
@@ -147,13 +146,14 @@ The redesign that makes ATL genuinely useful for real agent development.
 - **Baseline regression system** — `extractBaseline()` captures a trace's structural invariants (tool set, tool order, turn count range, cost range, token range, output shape, stop reason). `compareBaseline()` detects drift. `toMatchBaseline()` matcher for assertions. `saveBaseline()`/`loadBaseline()` for persistence. `updateBaseline()` for widening ranges.
 - **Trace I/O** — `saveTrace()`/`loadTrace()` with proper Error serialization. `printTrace()` for human-readable debugging output (like RTL's `screen.debug()`).
 - **11 matchers** including the new `toMatchBaseline`
-- 134 tests across 11 files
+- 3 complete examples: e-commerce support agent, RAG pipeline, code review agent
+- 169 tests across 13 files
 
-### Phase 3: Ecosystem
+### Phase 3: Publish & Ecosystem
 
 Expand reach and integrate into the broader development workflow.
 
-- **npm publish** — proper package.json exports, bundled types, ready to install
+- **npm publish** — proper package.json exports, bundled ESM + declarations, `files` whitelist, MIT LICENSE (Done)
 - **Framework adapters** — Vercel AI SDK, OpenAI Agents SDK, LangChain/LangGraph, raw HTTP endpoints
 - **Test runner plugins** — Vitest plugin, Jest plugin (in addition to Bun)
 - **CLI tooling** — `atl --update-baselines`, `atl record`, `atl report`
