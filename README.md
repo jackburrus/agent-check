@@ -6,7 +6,7 @@ ATL is a testing library for AI agents — inspired by [React Testing Library](h
 
 ```ts
 import { test, expect } from "bun:test";
-import { run, mock } from "agent-testing-library";
+import { run, mock } from "agent-testkit";
 
 test("agent greets the user by name", async () => {
   const trace = await run(
@@ -73,7 +73,7 @@ test("agent greets the user by name", async () => {
 ## Installation
 
 ```bash
-bun install agent-testing-library
+bun install agent-testkit
 ```
 
 ATL is designed for [Bun](https://bun.sh)'s test runner. It extends `expect` with custom matchers automatically via a preload file.
@@ -91,7 +91,7 @@ If you install ATL as a package, add:
 
 ```toml
 [test]
-preload = ["agent-testing-library/setup"]
+preload = ["agent-testkit/setup"]
 ```
 
 ---
@@ -100,7 +100,7 @@ preload = ["agent-testing-library/setup"]
 
 ```ts
 import { test, expect } from "bun:test";
-import { run, mock } from "agent-testing-library";
+import { run, mock } from "agent-testkit";
 
 test("customer support agent looks up order before responding", async () => {
   const trace = await run(
@@ -550,7 +550,7 @@ interface Baseline {
 ### API
 
 ```ts
-import { extractBaseline, compareBaseline, saveBaseline, loadBaseline, updateBaseline } from "agent-testing-library";
+import { extractBaseline, compareBaseline, saveBaseline, loadBaseline, updateBaseline } from "agent-testkit";
 
 // Extract a baseline from a known-good trace
 const baseline = extractBaseline(trace);
@@ -589,7 +589,7 @@ Save, load, and debug traces.
 Serialize traces to JSON and load them back. Error objects are properly serialized and reconstructed.
 
 ```ts
-import { saveTrace, loadTrace } from "agent-testing-library";
+import { saveTrace, loadTrace } from "agent-testkit";
 
 await saveTrace(trace, ".traces/run-123.json");
 const loaded = await loadTrace(".traces/run-123.json");
@@ -600,7 +600,7 @@ const loaded = await loadTrace(".traces/run-123.json");
 Returns a human-readable summary string for debugging — like RTL's `screen.debug()`.
 
 ```ts
-import { printTrace } from "agent-testing-library";
+import { printTrace } from "agent-testkit";
 
 console.log(printTrace(trace));
 ```
@@ -773,7 +773,7 @@ test("agent handles dynamic responses", async () => {
 Capture a baseline from a known-good run and detect drift in future runs:
 
 ```ts
-import { extractBaseline, saveBaseline, loadBaseline } from "agent-testing-library";
+import { extractBaseline, saveBaseline, loadBaseline } from "agent-testkit";
 
 // First time: capture and save baseline
 test("capture baseline", async () => {
@@ -795,7 +795,7 @@ test("agent behavior matches baseline", async () => {
 When a test fails, use `printTrace` to quickly see what happened:
 
 ```ts
-import { printTrace } from "agent-testing-library";
+import { printTrace } from "agent-testkit";
 
 test("debug a failing agent", async () => {
   const trace = await run(supportAgent, { input, mocks: baseMocks() });
@@ -827,7 +827,7 @@ import type {
   MockToolFn,
   Baseline,
   BaselineDiff,
-} from "agent-testing-library";
+} from "agent-testkit";
 ```
 
 ### `ToolCall`
