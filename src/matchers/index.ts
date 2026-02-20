@@ -12,9 +12,9 @@ export {
 } from "./budget-matchers.ts";
 
 export {
-  toComplete,
-  toHaveSteps,
-  toHaveRetries,
+  toConverge,
+  toHaveTurns,
+  toHaveStopReason,
 } from "./structural-matchers.ts";
 
 import {
@@ -31,10 +31,12 @@ import {
 } from "./budget-matchers.ts";
 
 import {
-  toComplete,
-  toHaveSteps,
-  toHaveRetries,
+  toConverge,
+  toHaveTurns,
+  toHaveStopReason,
 } from "./structural-matchers.ts";
+
+import { toMatchBaseline } from "./baseline-matchers.ts";
 
 export const allMatchers = {
   toHaveCalledTool,
@@ -44,7 +46,8 @@ export const allMatchers = {
   toBeWithinBudget,
   toBeWithinTokens,
   toBeWithinLatency,
-  toComplete,
-  toHaveSteps,
-  toHaveRetries,
+  toConverge,
+  toHaveTurns,
+  toHaveStopReason,
+  toMatchBaseline,
 };

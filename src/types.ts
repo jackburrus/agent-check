@@ -8,9 +8,12 @@ export interface ToolCall {
   endedAt: number;
 }
 
-export interface Step {
-  label: string;
+export interface Turn {
+  index: number;
+  label?: string;
   toolCalls: ToolCall[];
+  response?: string;
+  tokens?: TokenUsage;
   duration: number;
   startedAt: number;
   endedAt: number;
@@ -24,22 +27,22 @@ export interface TokenUsage {
 }
 
 export interface Trace<TInput = unknown, TOutput = unknown> {
-  completed: boolean;
+  converged: boolean;
+  stopReason: "converged" | "maxTurns" | "error" | "timeout";
   error?: Error;
   input: TInput;
   output: TOutput;
   toolCalls: readonly ToolCall[];
-  steps: readonly Step[];
+  turns: readonly Turn[];
   duration: number;
   startedAt: number;
   endedAt: number;
   cost?: number;
   tokens?: TokenUsage;
-  retries: number;
   metadata: Record<string, unknown>;
 }
 
-export interface StepHandle {
+export interface TurnHandle {
   addToolCall(call: {
     name: string;
     input: unknown;
@@ -47,6 +50,7 @@ export interface StepHandle {
     error?: Error;
     duration?: number;
   }): void;
+  setResponse(text: string): void;
   end(): void;
 }
 
@@ -58,11 +62,10 @@ export interface TraceWriter {
     error?: Error;
     duration?: number;
   }): void;
-  startStep(label: string, metadata?: Record<string, unknown>): StepHandle;
+  startTurn(label?: string, metadata?: Record<string, unknown>): TurnHandle;
   setOutput(output: unknown): void;
   setCost(usd: number): void;
   setTokens(tokens: TokenUsage): void;
-  setRetries(count: number): void;
   setMetadata(key: string, value: unknown): void;
 }
 
@@ -92,3 +95,20 @@ export type AgentFn<
   TTools = Record<string, (...args: any[]) => any>,
   TOutput = unknown,
 > = (ctx: RunContext<TInput, TTools>) => TOutput | Promise<TOutput>;
+
+export interface Baseline {
+  version: 1;
+  toolSet: string[];
+  toolOrder: string[];
+  turnCount: { min: number; max: number };
+  costRange?: { min: number; max: number };
+  tokenRange?: { min: number; max: number };
+  outputShape: string[];
+  stopReason: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface BaselineDiff {
+  pass: boolean;
+  differences: string[];
+}

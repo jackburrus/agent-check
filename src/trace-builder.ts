@@ -1,23 +1,23 @@
 import type {
   Trace,
   ToolCall,
-  Step,
+  Turn,
   TokenUsage,
   TraceWriter,
-  StepHandle,
+  TurnHandle,
 } from "./types.ts";
 
 export class TraceBuilder {
-  private _completed = false;
+  private _converged = false;
+  private _stopReason: Trace["stopReason"] = "error";
   private _error?: Error;
   private _input: unknown = undefined;
   private _output: unknown = undefined;
   private _toolCalls: ToolCall[] = [];
-  private _steps: Step[] = [];
+  private _turns: Turn[] = [];
   private _startedAt: number;
   private _cost?: number;
   private _tokens?: TokenUsage;
-  private _retries = 0;
   private _metadata: Record<string, unknown> = {};
   private _outputOverridden = false;
 
@@ -38,8 +38,12 @@ export class TraceBuilder {
     return this._outputOverridden;
   }
 
-  setCompleted(completed: boolean): void {
-    this._completed = completed;
+  setConverged(converged: boolean): void {
+    this._converged = converged;
+  }
+
+  setStopReason(reason: Trace["stopReason"]): void {
+    this._stopReason = reason;
   }
 
   setError(error: Error): void {
@@ -58,10 +62,6 @@ export class TraceBuilder {
     };
   }
 
-  setRetries(count: number): void {
-    this._retries = count;
-  }
-
   setMetadata(key: string, value: unknown): void {
     this._metadata[key] = value;
   }
@@ -70,8 +70,8 @@ export class TraceBuilder {
     this._toolCalls.push(call);
   }
 
-  addStep(step: Step): void {
-    this._steps.push(step);
+  addTurn(turn: Turn): void {
+    this._turns.push(turn);
   }
 
   writer(): TraceWriter {
@@ -88,11 +88,13 @@ export class TraceBuilder {
           endedAt: now,
         });
       },
-      startStep: (label, metadata) => {
-        const stepStartedAt = Date.now();
-        const stepToolCalls: ToolCall[] = [];
+      startTurn: (label?, metadata?) => {
+        const turnStartedAt = Date.now();
+        const turnToolCalls: ToolCall[] = [];
+        const turnIndex = this._turns.length;
+        let turnResponse: string | undefined;
 
-        const handle: StepHandle = {
+        const handle: TurnHandle = {
           addToolCall: (call) => {
             const now = Date.now();
             const toolCall: ToolCall = {
@@ -104,16 +106,21 @@ export class TraceBuilder {
               startedAt: now - (call.duration ?? 0),
               endedAt: now,
             };
-            stepToolCalls.push(toolCall);
+            turnToolCalls.push(toolCall);
             this._toolCalls.push(toolCall);
+          },
+          setResponse: (text: string) => {
+            turnResponse = text;
           },
           end: () => {
             const endedAt = Date.now();
-            this.addStep({
+            this.addTurn({
+              index: turnIndex,
               label,
-              toolCalls: stepToolCalls,
-              duration: endedAt - stepStartedAt,
-              startedAt: stepStartedAt,
+              toolCalls: turnToolCalls,
+              response: turnResponse,
+              duration: endedAt - turnStartedAt,
+              startedAt: turnStartedAt,
               endedAt,
               metadata,
             });
@@ -125,7 +132,6 @@ export class TraceBuilder {
       setOutput: (output) => this.setOutput(output),
       setCost: (usd) => this.setCost(usd),
       setTokens: (tokens) => this.setTokens(tokens),
-      setRetries: (count) => this.setRetries(count),
       setMetadata: (key, value) => this.setMetadata(key, value),
     };
   }
@@ -133,18 +139,18 @@ export class TraceBuilder {
   build(): Trace {
     const endedAt = Date.now();
     const trace: Trace = {
-      completed: this._completed,
+      converged: this._converged,
+      stopReason: this._stopReason,
       error: this._error,
       input: this._input,
       output: this._output,
       toolCalls: Object.freeze([...this._toolCalls]),
-      steps: Object.freeze([...this._steps]),
+      turns: Object.freeze([...this._turns]),
       duration: endedAt - this._startedAt,
       startedAt: this._startedAt,
       endedAt,
       cost: this._cost,
       tokens: this._tokens,
-      retries: this._retries,
       metadata: { ...this._metadata },
     };
     return Object.freeze(trace) as Trace;

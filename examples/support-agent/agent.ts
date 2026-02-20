@@ -17,18 +17,18 @@ export async function supportAgent(
 
   ctx.trace.setMetadata("model", "gpt-4o-mini");
 
-  // --- Step 1: Classify intent ---
-  const classifyStep = ctx.trace.startStep("classify");
+  // --- Turn 0: Classify intent ---
+  const classifyTurn = ctx.trace.startTurn("classify");
   const classification = (await tools.llm(
     `Classify the intent of this customer message: "${input.message}"`
   )) as ClassifyResult;
-  classifyStep.end();
+  classifyTurn.end();
 
   const { intent } = classification;
   const orderId = classification.orderId ?? input.orderId;
 
-  // --- Step 2: Gather context ---
-  const gatherStep = ctx.trace.startStep("gather-context");
+  // --- Turn 1: Gather context ---
+  const gatherTurn = ctx.trace.startTurn("gather-context");
   const customer = await tools.lookupCustomer(input.customerId);
 
   let order;
@@ -40,10 +40,10 @@ export async function supportAgent(
   if (intent === "question") {
     kbResults = await tools.searchKnowledgeBase(input.message);
   }
-  gatherStep.end();
+  gatherTurn.end();
 
-  // --- Step 3: Decide and act ---
-  const decideStep = ctx.trace.startStep("decide");
+  // --- Turn 2: Decide and act ---
+  const decideTurn = ctx.trace.startTurn("decide");
   let result: AgentResult;
 
   switch (intent) {
@@ -142,7 +142,7 @@ export async function supportAgent(
     }
   }
 
-  decideStep.end();
+  decideTurn.end();
 
   ctx.trace.setOutput(result);
   return result;

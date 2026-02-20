@@ -1,35 +1,35 @@
 import { assertIsTrace } from "./helpers.ts";
 
-export function toComplete(trace: unknown) {
+export function toConverge(trace: unknown) {
   assertIsTrace(trace);
 
   return {
-    pass: trace.completed,
+    pass: trace.converged,
     message: () =>
-      trace.completed
-        ? "Expected trace not to have completed, but it did"
-        : `Expected trace to have completed, but it did not${trace.error ? `: ${trace.error.message}` : ""}`,
+      trace.converged
+        ? "Expected trace not to have converged, but it did"
+        : `Expected trace to have converged, but it did not${trace.error ? `: ${trace.error.message}` : ""}`,
   };
 }
 
-export function toHaveSteps(
+export function toHaveTurns(
   trace: unknown,
   opts?: { min?: number; max?: number }
 ) {
   assertIsTrace(trace);
 
   if (!opts) {
-    const pass = trace.steps.length > 0;
+    const pass = trace.turns.length > 0;
     return {
       pass,
       message: () =>
         pass
-          ? `Expected trace to have no steps, but it has ${trace.steps.length}`
-          : "Expected trace to have at least one step, but it has none",
+          ? `Expected trace to have no turns, but it has ${trace.turns.length}`
+          : "Expected trace to have at least one turn, but it has none",
     };
   }
 
-  const count = trace.steps.length;
+  const count = trace.turns.length;
   const aboveMin = opts.min === undefined || count >= opts.min;
   const belowMax = opts.max === undefined || count <= opts.max;
   const pass = aboveMin && belowMax;
@@ -45,20 +45,20 @@ export function toHaveSteps(
     pass,
     message: () =>
       pass
-        ? `Expected step count not to be ${rangeStr}, but got ${count}`
-        : `Expected ${rangeStr} steps, but got ${count}`,
+        ? `Expected turn count not to be ${rangeStr}, but got ${count}`
+        : `Expected ${rangeStr} turns, but got ${count}`,
   };
 }
 
-export function toHaveRetries(trace: unknown, opts: { max: number }) {
+export function toHaveStopReason(trace: unknown, expected: string) {
   assertIsTrace(trace);
 
-  const pass = trace.retries <= opts.max;
+  const pass = trace.stopReason === expected;
   return {
     pass,
     message: () =>
       pass
-        ? `Expected retries to exceed ${opts.max}, but was ${trace.retries}`
-        : `Expected at most ${opts.max} retries, but was ${trace.retries}`,
+        ? `Expected stop reason not to be "${expected}", but it was`
+        : `Expected stop reason to be "${expected}", but was "${trace.stopReason}"`,
   };
 }

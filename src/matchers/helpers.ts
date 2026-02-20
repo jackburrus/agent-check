@@ -5,11 +5,11 @@ export function assertIsTrace(value: unknown): asserts value is Trace<unknown, u
     typeof value !== "object" ||
     value === null ||
     !("toolCalls" in value) ||
-    !("completed" in value) ||
-    !("steps" in value)
+    !("converged" in value) ||
+    !("turns" in value)
   ) {
     throw new Error(
-      "Expected value to be a Trace object (with toolCalls, completed, and steps properties)"
+      "Expected value to be a Trace object (with toolCalls, converged, and turns properties)"
     );
   }
 }

@@ -1,4 +1,4 @@
-import type { Trace, TokenUsage } from "./types.ts";
+import type { Trace, TokenUsage, Baseline } from "./types.ts";
 
 declare module "bun:test" {
   interface Matchers<T> {
@@ -15,8 +15,11 @@ declare module "bun:test" {
     toBeWithinLatency(opts: { maxMs: number }): void;
 
     // Structural matchers
-    toComplete(): void;
-    toHaveSteps(opts?: { min?: number; max?: number }): void;
-    toHaveRetries(opts: { max: number }): void;
+    toConverge(): void;
+    toHaveTurns(opts?: { min?: number; max?: number }): void;
+    toHaveStopReason(expected: string): void;
+
+    // Baseline matchers
+    toMatchBaseline(baseline: Baseline): void;
   }
 }

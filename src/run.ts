@@ -103,14 +103,16 @@ export async function run<
   const execute = async () => {
     try {
       const result = await agentFn(ctx);
-      builder.setCompleted(true);
+      builder.setConverged(true);
+      builder.setStopReason("converged");
       if (!builder.outputOverridden) {
         builder.setOutput(result);
       }
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
       builder.setError(error);
-      builder.setCompleted(false);
+      builder.setConverged(false);
+      builder.setStopReason("error");
     }
   };
 
@@ -122,7 +124,8 @@ export async function run<
   const result = await Promise.race([execute(), timeoutPromise]);
 
   if (result === "timeout") {
-    builder.setCompleted(false);
+    builder.setConverged(false);
+    builder.setStopReason("timeout");
     builder.setError(new Error(`Agent timed out after ${timeout}ms`));
   }
 

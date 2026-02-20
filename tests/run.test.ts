@@ -11,7 +11,8 @@ describe("run()", () => {
       { input: { userId: "42" } }
     );
 
-    expect(trace.completed).toBe(true);
+    expect(trace.converged).toBe(true);
+    expect(trace.stopReason).toBe("converged");
     expect(trace.input).toEqual({ userId: "42" });
     expect(trace.output).toEqual({ greeting: "Hello!" });
     expect(trace.error).toBeUndefined();
@@ -31,7 +32,7 @@ describe("run()", () => {
       }
     );
 
-    expect(trace.completed).toBe(true);
+    expect(trace.converged).toBe(true);
     expect(trace.toolCalls).toHaveLength(1);
     expect(trace.toolCalls[0]!.name).toBe("lookupUser");
     expect(trace.toolCalls[0]!.input).toEqual({ id: "42" });
@@ -58,12 +59,13 @@ describe("run()", () => {
     expect(trace.toolCalls[1]!.name).toBe("getPreferences");
   });
 
-  test("captures errors and sets completed=false", async () => {
+  test("captures errors and sets converged=false", async () => {
     const trace = await run(async () => {
       throw new Error("Agent crashed");
     });
 
-    expect(trace.completed).toBe(false);
+    expect(trace.converged).toBe(false);
+    expect(trace.stopReason).toBe("error");
     expect(trace.error).toBeDefined();
     expect(trace.error!.message).toBe("Agent crashed");
   });
@@ -80,7 +82,8 @@ describe("run()", () => {
       }
     );
 
-    expect(trace.completed).toBe(false);
+    expect(trace.converged).toBe(false);
+    expect(trace.stopReason).toBe("error");
     expect(trace.error).toBeInstanceOf(ForbiddenToolError);
     expect(trace.toolCalls).toHaveLength(1);
     expect(trace.toolCalls[0]!.name).toBe("deleteUser");
@@ -96,7 +99,8 @@ describe("run()", () => {
       { timeout: 50 }
     );
 
-    expect(trace.completed).toBe(false);
+    expect(trace.converged).toBe(false);
+    expect(trace.stopReason).toBe("timeout");
     expect(trace.error!.message).toContain("timed out");
   });
 
@@ -120,21 +124,21 @@ describe("run()", () => {
     expect(trace.tokens).toEqual({ input: 150, output: 50, total: 200 });
   });
 
-  test("trace.startStep works", async () => {
+  test("trace.startTurn works", async () => {
     const trace = await run(async (ctx) => {
-      const step = ctx.trace.startStep("planning");
-      step.addToolCall({
+      const turn = ctx.trace.startTurn("planning");
+      turn.addToolCall({
         name: "think",
         input: "problem",
         output: "plan",
       });
-      step.end();
+      turn.end();
       return "ok";
     });
 
-    expect(trace.steps).toHaveLength(1);
-    expect(trace.steps[0]!.label).toBe("planning");
-    expect(trace.steps[0]!.toolCalls).toHaveLength(1);
+    expect(trace.turns).toHaveLength(1);
+    expect(trace.turns[0]!.label).toBe("planning");
+    expect(trace.turns[0]!.toolCalls).toHaveLength(1);
   });
 
   test("passes metadata through", async () => {
@@ -157,14 +161,14 @@ describe("run()", () => {
       }
     );
 
-    expect(trace.completed).toBe(true);
+    expect(trace.converged).toBe(true);
     expect(trace.output).toBe(10);
   });
 
   test("works with no options", async () => {
     const trace = await run(async () => "hello");
 
-    expect(trace.completed).toBe(true);
+    expect(trace.converged).toBe(true);
     expect(trace.output).toBe("hello");
     expect(trace.input).toBeUndefined();
   });

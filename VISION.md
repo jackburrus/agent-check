@@ -37,13 +37,21 @@ Not in a YAML config. Not in a dashboard. In your test files, with your test run
 
 ### 3. Traces are first-class
 
-Every `run()` produces a structured `Trace` — the equivalent of RTL's `screen`. The trace is the primary interface between your test and the system under test. It captures tool calls, steps, cost, tokens, timing, metadata, and output.
+Every `run()` produces a structured `Trace` — the equivalent of RTL's `screen`. The trace is the primary interface between your test and the system under test. It captures tool calls, turns, cost, tokens, timing, metadata, and output.
 
-### 4. Mocks are cheap, not mandatory
+### 4. Turn-based model mirrors reality
+
+Real agents run in loops: LLM call → tool calls → repeat. ATL's turn-based trace model mirrors this directly. Each `Turn` captures one iteration of the loop — its tool calls, response text, and metadata. This makes traces legible and assertions natural.
+
+### 5. Baselines catch regressions
+
+When you change a prompt, upgrade a model, or update a tool, the behavioral "shape" of the agent might change — different tools get called, the number of turns shifts, cost increases. ATL's baseline system captures the structural envelope of a known-good trace and detects drift automatically.
+
+### 6. Mocks are cheap, not mandatory
 
 You can mock tools (fast, deterministic) or hit real ones (slow, realistic). ATL doesn't force either. But it makes mocking trivially easy — `mock.fn()` for tool calls, `mock.forbidden()` for policy guardrails.
 
-### 5. No vendor lock-in
+### 7. No vendor lock-in
 
 Works with OpenAI, Anthropic, local models, any agent framework, or no framework at all. ATL doesn't care how your agent is built. It cares what the agent *did*.
 
@@ -75,7 +83,7 @@ ATL doesn't ban real model calls. It supports "Passthrough Mocks" where you call
 Agent Code  →  Runner  →  Trace  →  Assertions
     ↑                        ↑
   your code            what happened
-                    (tool calls, steps,
+                    (tool calls, turns,
                      tokens, cost, timing)
 ```
 
@@ -85,8 +93,10 @@ Mapping to React Testing Library:
 |-----|-----|
 | `render()` | `run()` — executes the agent in a controlled harness |
 | `screen` | `Trace` — the primary query interface for assertions |
-| `getByRole()`, `toBeInTheDocument()` | `toHaveCalledTool()`, `toComplete()` — semantic assertions on behavior |
+| `getByRole()`, `toBeInTheDocument()` | `toHaveCalledTool()`, `toConverge()` — semantic assertions on behavior |
 | MSW (network mocks) | `mock.fn()`, `mock.forbidden()` — tool doubles |
+| Jest snapshots | `toMatchBaseline()` — structural regression detection |
+| `screen.debug()` | `printTrace()` — human-readable trace output for debugging |
 
 ## What ATL Is Not
 
@@ -103,6 +113,7 @@ Mapping to React Testing Library:
 | **Lives where** | Your test files | Separate config | Cloud platform | Cloud platform |
 | **Feels like** | Jest / Vitest | CLI tool | Analytics product | DevOps platform |
 | **Tests what** | Agent behavior | Prompt outputs | Model quality | Agent traces |
+| **Regression detection** | Baseline diffs | Manual | Manual | Manual |
 | **Vendor lock-in** | None | None | Some | LangChain |
 | **Setup time** | `npm install` | `npx init` + YAML | Account + SDK | Account + SDK |
 | **Target user** | TS/JS devs building agents | ML/AI engineers | ML teams | LangChain users |
@@ -121,27 +132,28 @@ The foundation that makes everything else possible.
 - 10 matchers across three categories:
   - **Tool:** `toHaveCalledTool`, `toHaveCalledToolWith`, `toHaveToolCallCount`, `toHaveToolOrder`
   - **Budget:** `toBeWithinBudget`, `toBeWithinTokens`, `toBeWithinLatency`
-  - **Structural:** `toComplete`, `toHaveSteps`, `toHaveRetries`
+  - **Structural:** `toConverge`, `toHaveTurns`, `toHaveStopReason`
 - Bun test runner integration with automatic matcher registration
 - Full generics — `RunContext<TInput, TTools>`, `Trace<TInput, TOutput>`, type inference from agent function signatures
 - `mock.sequence()` — ordered multi-call responses, repeats last value when exhausted
-- Complete example: e-commerce support agent with 24 tests
+- Complete example: e-commerce support agent with 27 tests
 
-This is enough for a working product. Tests run, assertions pass, CI goes green.
+### Phase 2: Turn-Based Traces, Baselines, and Trace I/O (Done)
 
-### Phase 2: DX and Core Polish
+The redesign that makes ATL genuinely useful for real agent development.
 
-Make the core loop phenomenal before expanding scope.
-
-- **Trace debugging** — `trace.summary()` for readable output when tests fail (like RTL's `screen.debug()`)
-- **Baseline snapshots** — `toMatchBaseline()` for regression testing traces (like Jest snapshots)
-- **npm publish** — proper package.json exports, bundled types, ready to install
-- **Vitest support** — setup file + matcher registration for the most popular TS test runner
+- **Turn-based trace model** — `Turn` replaces `Step`, mirrors how real agent loops work (LLM call → tool calls → repeat). Turns auto-increment, have optional labels, capture response text.
+- **`stopReason`** — `"converged" | "maxTurns" | "error" | "timeout"` replaces the boolean `completed` flag, giving precise information about why the agent stopped.
+- **Baseline regression system** — `extractBaseline()` captures a trace's structural invariants (tool set, tool order, turn count range, cost range, token range, output shape, stop reason). `compareBaseline()` detects drift. `toMatchBaseline()` matcher for assertions. `saveBaseline()`/`loadBaseline()` for persistence. `updateBaseline()` for widening ranges.
+- **Trace I/O** — `saveTrace()`/`loadTrace()` with proper Error serialization. `printTrace()` for human-readable debugging output (like RTL's `screen.debug()`).
+- **11 matchers** including the new `toMatchBaseline`
+- 134 tests across 11 files
 
 ### Phase 3: Ecosystem
 
 Expand reach and integrate into the broader development workflow.
 
+- **npm publish** — proper package.json exports, bundled types, ready to install
 - **Framework adapters** — Vercel AI SDK, OpenAI Agents SDK, LangChain/LangGraph, raw HTTP endpoints
 - **Test runner plugins** — Vitest plugin, Jest plugin (in addition to Bun)
 - **CLI tooling** — `atl --update-baselines`, `atl record`, `atl report`
@@ -152,16 +164,16 @@ Expand reach and integrate into the broader development workflow.
 
 Sophisticated mock capabilities for complex agent testing scenarios.
 
-- **Sequence mocks** — different responses on each call
 - **Conditional mocks** — responses based on input patterns
 - **Delayed mocks** — simulate slow tools and test timeout handling
 - **Failing mocks** — simulate tool errors and test recovery
 - **PII detection** — `not.toContainPII()` for data safety assertions
+- **Recorded-trace testing** — replay saved traces as test fixtures
 
 ## Package Strategy
 
 ```
-agent-testing-library           ← core library (run, trace, matchers, mocks)
+agent-testing-library           ← core library (run, trace, matchers, mocks, baselines)
 @agent-testing-library/jest     ← jest setup + reporter
 @agent-testing-library/vitest   ← vitest plugin + reporter
 @agent-testing-library/cli      ← CLI tools (baselines, recording, reports)
@@ -175,7 +187,7 @@ npm install -D agent-testing-library
 
 ## Target User
 
-A TypeScript/JavaScript developer building agents. They're already comfortable with Jest or Vitest. They want to test their agent's behavior in CI — not set up a cloud platform. They want tests that are fast, deterministic, and cheap to run. They don't want to learn a new DSL or configure YAML. They want to write `expect(trace).toHaveCalledTool("search")` and move on.
+A TypeScript/JavaScript developer building agents. They're already comfortable with Jest or Vitest. They want to test their agent's behavior in CI — not set up a cloud platform. They want tests that are fast, deterministic, and cheap to run. They don't want to learn a new DSL or configure YAML. They want to write `expect(trace).toConverge()` and `expect(trace).toMatchBaseline(baseline)` and move on.
 
 ## Design Principles
 
@@ -184,3 +196,4 @@ A TypeScript/JavaScript developer building agents. They're already comfortable w
 3. **Behavioral over textual.** What did the agent *do*? Not what did it *say*. Tool calls over token probabilities.
 4. **Simple over configurable.** Sensible defaults. Zero config to start. Progressive disclosure for advanced features.
 5. **Library over platform.** A dependency in your `package.json`, not a service to sign up for.
+6. **Regression-aware.** Baselines capture what "normal" looks like. Changes are detected, not ignored.

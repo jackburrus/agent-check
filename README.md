@@ -23,7 +23,7 @@ test("agent greets the user by name", async () => {
     }
   );
 
-  expect(trace).toComplete();
+  expect(trace).toConverge();
   expect(trace).toHaveCalledTool("lookupUser");
   expect(trace).not.toHaveCalledTool("deleteUser");
   expect(trace).toHaveCalledToolWith("lookupUser", { userId: "42" });
@@ -41,24 +41,30 @@ test("agent greets the user by name", async () => {
   - [The `run()` Function](#the-run-function)
   - [RunContext](#runcontext)
   - [Traces](#traces)
+  - [Turns](#turns)
   - [Mocks](#mocks)
 - [API Reference](#api-reference)
   - [`run(agentFn, options?)`](#runagentfn-options)
   - [`mock.fn(valueOrImpl?)`](#mockfnvalueorimpl)
   - [`mock.forbidden(message?)`](#mockforbiddenmessage)
   - [TraceWriter](#tracewriter)
-  - [StepHandle](#stephandle)
+  - [TurnHandle](#turnhandle)
 - [Matchers](#matchers)
   - [Tool Matchers](#tool-matchers)
   - [Budget Matchers](#budget-matchers)
   - [Structural Matchers](#structural-matchers)
+  - [Baseline Matchers](#baseline-matchers)
+- [Baseline Regression System](#baseline-regression-system)
+- [Trace I/O](#trace-io)
 - [Recipes](#recipes)
   - [Testing Tool Order](#testing-tool-order)
   - [Testing Cost Budgets](#testing-cost-budgets)
   - [Testing Policy Compliance](#testing-policy-compliance)
-  - [Multi-Step Agents](#multi-step-agents)
+  - [Multi-Turn Agents](#multi-turn-agents)
   - [Testing Timeouts](#testing-timeouts)
   - [Dynamic Mocks](#dynamic-mocks)
+  - [Baseline Regression Testing](#baseline-regression-testing)
+  - [Debugging with printTrace](#debugging-with-printtrace)
 - [Types](#types)
 - [Project Structure](#project-structure)
 
@@ -113,8 +119,9 @@ test("customer support agent looks up order before responding", async () => {
     }
   );
 
-  // Did it finish?
-  expect(trace).toComplete();
+  // Did it converge?
+  expect(trace).toConverge();
+  expect(trace).toHaveStopReason("converged");
 
   // Did it call the right tools?
   expect(trace).toHaveCalledTool("getOrder");
@@ -149,7 +156,7 @@ Agent Function  →  run()  →  TraceBuilder  →  Trace  →  expect(trace).to
                    tools        timing, cost
 ```
 
-The agent function receives a `RunContext` with mocked tools (auto-tracked) and a `TraceWriter` for manual reporting. The function's return value becomes `trace.output`. If it throws, `trace.completed` is `false` and `trace.error` captures the exception.
+The agent function receives a `RunContext` with mocked tools (auto-tracked) and a `TraceWriter` for manual reporting. The function's return value becomes `trace.output`. If it throws, `trace.converged` is `false` and `trace.error` captures the exception.
 
 ### RunContext
 
@@ -159,7 +166,7 @@ Your agent function receives a `RunContext<TInput, TTools>` with three fields:
 |-------|------|-------------|
 | `ctx.input` | `TInput` | The input data you passed via `options.input` |
 | `ctx.tools` | `TTools` | Auto-tracked mock tools — every call is recorded |
-| `ctx.trace` | `TraceWriter` | Manual reporting: cost, tokens, steps, metadata |
+| `ctx.trace` | `TraceWriter` | Manual reporting: cost, tokens, turns, metadata |
 
 `RunContext` supports generics for full type safety. Define your tools as an interface and use it as a type parameter — no casting required:
 
@@ -181,19 +188,37 @@ A `Trace<TInput, TOutput>` is a frozen snapshot of everything that happened duri
 
 ```ts
 interface Trace<TInput = unknown, TOutput = unknown> {
-  completed: boolean;          // Did the agent finish without error?
-  error?: Error;               // The error, if it threw
-  input: TInput;               // What was passed in
-  output: TOutput;             // What was returned (or manually set)
+  converged: boolean;              // Did the agent finish without error?
+  stopReason: "converged" | "maxTurns" | "error" | "timeout";
+  error?: Error;                   // The error, if it threw
+  input: TInput;                   // What was passed in
+  output: TOutput;                 // What was returned (or manually set)
   toolCalls: readonly ToolCall[];  // Every tool call, in order
-  steps: readonly Step[];      // Manually-reported steps
-  duration: number;            // Wall-clock ms
-  startedAt: number;           // Epoch timestamp
-  endedAt: number;             // Epoch timestamp
-  cost?: number;               // USD (manually reported)
-  tokens?: TokenUsage;         // Token counts (manually reported)
-  retries: number;             // Retry count (manually reported)
+  turns: readonly Turn[];          // Manually-reported turns
+  duration: number;                // Wall-clock ms
+  startedAt: number;               // Epoch timestamp
+  endedAt: number;                 // Epoch timestamp
+  cost?: number;                   // USD (manually reported)
+  tokens?: TokenUsage;             // Token counts (manually reported)
   metadata: Record<string, unknown>;  // Arbitrary key-values
+}
+```
+
+### Turns
+
+A `Turn` represents a single iteration of the agent loop — typically one LLM call followed by zero or more tool calls. This mirrors how real agent loops work.
+
+```ts
+interface Turn {
+  index: number;                   // Auto-incremented, starting at 0
+  label?: string;                  // Optional developer label
+  toolCalls: ToolCall[];           // Tool calls made during this turn
+  response?: string;               // Text output from this turn
+  tokens?: TokenUsage;
+  duration: number;
+  startedAt: number;
+  endedAt: number;
+  metadata?: Record<string, unknown>;
 }
 ```
 
@@ -256,8 +281,8 @@ const trace = await run(
 **Behavior:**
 - Each mock in `options.mocks` is wrapped in a tracking proxy before being exposed as `ctx.tools[name]`
 - If the agent function returns a value, it becomes `trace.output`
-- If the agent function throws, `trace.completed` is `false` and `trace.error` captures it
-- If the function exceeds `timeout`, the trace records a timeout error
+- If the agent function throws, `trace.converged` is `false`, `trace.stopReason` is `"error"`, and `trace.error` captures it
+- If the function exceeds `timeout`, `trace.stopReason` is `"timeout"`
 - The trace is frozen (immutable) after `run()` returns
 
 ---
@@ -312,23 +337,22 @@ mock.forbidden("Agent must not delete users") // Custom message
 
 If a forbidden mock is called:
 - The tool call is still recorded in the trace (with the error)
-- The error propagates, causing `trace.completed = false`
+- The error propagates, causing `trace.converged = false` and `trace.stopReason = "error"`
 - `trace.error` is a `ForbiddenToolError` instance
 
 ---
 
 ### TraceWriter
 
-The `TraceWriter` is available as `ctx.trace` inside your agent function. Use it to report things ATL can't automatically observe — like LLM API costs, token usage, or logical steps.
+The `TraceWriter` is available as `ctx.trace` inside your agent function. Use it to report things ATL can't automatically observe — like LLM API costs, token usage, or logical turns.
 
 | Method | Description |
 |--------|-------------|
 | `addToolCall(call)` | Manually record a tool call |
-| `startStep(label, metadata?)` | Start a named step (returns `StepHandle`) |
+| `startTurn(label?, metadata?)` | Start a named turn (returns `TurnHandle`) |
 | `setOutput(output)` | Override the function's return value |
 | `setCost(usd)` | Report cost in USD |
 | `setTokens({ input, output, total? })` | Report token usage |
-| `setRetries(count)` | Report retry count |
 | `setMetadata(key, value)` | Attach arbitrary metadata |
 
 ```ts
@@ -336,7 +360,6 @@ const trace = await run(async (ctx) => {
   // Report LLM usage
   ctx.trace.setCost(0.003);
   ctx.trace.setTokens({ input: 150, output: 50 });
-  ctx.trace.setRetries(1);
   ctx.trace.setMetadata("model", "claude-sonnet-4-20250514");
 
   // Override the output
@@ -346,22 +369,24 @@ const trace = await run(async (ctx) => {
 });
 ```
 
-### StepHandle
+### TurnHandle
 
-Returned by `ctx.trace.startStep()`. Represents a logical step in your agent's execution.
+Returned by `ctx.trace.startTurn()`. Represents a single iteration of the agent loop.
 
 | Method | Description |
 |--------|-------------|
-| `addToolCall(call)` | Record a tool call within this step |
-| `end()` | Close the step (records duration) |
+| `addToolCall(call)` | Record a tool call within this turn |
+| `setResponse(text)` | Capture text output from this turn |
+| `end()` | Close the turn (records duration) |
 
 ```ts
-const step = ctx.trace.startStep("planning", { model: "gpt-4" });
-step.addToolCall({ name: "think", input: "problem", output: "plan" });
-step.end();
+const turn = ctx.trace.startTurn("planning", { model: "gpt-4" });
+turn.addToolCall({ name: "think", input: "problem", output: "plan" });
+turn.setResponse("I will search for relevant documents first.");
+turn.end();
 ```
 
-Tool calls added via `step.addToolCall()` appear both in the step's `toolCalls` array and in the top-level `trace.toolCalls`.
+Tool calls added via `turn.addToolCall()` appear both in the turn's `toolCalls` array and in the top-level `trace.toolCalls`. Turn indices auto-increment starting at 0.
 
 ---
 
@@ -456,32 +481,143 @@ expect(trace).toBeWithinLatency({ maxMs: 3000 });
 
 ### Structural Matchers
 
-#### `toComplete()`
+#### `toConverge()`
 
 Asserts that the agent finished without error.
 
 ```ts
-expect(trace).toComplete();
-expect(failedTrace).not.toComplete();
+expect(trace).toConverge();
+expect(failedTrace).not.toConverge();
 ```
 
-#### `toHaveSteps(opts?)`
+#### `toHaveTurns(opts?)`
 
-With no arguments, asserts that at least one step was recorded. With `{ min, max }`, asserts the step count is within range.
+With no arguments, asserts that at least one turn was recorded. With `{ min, max }`, asserts the turn count is within range.
 
 ```ts
-expect(trace).toHaveSteps();                    // at least 1 step
-expect(trace).toHaveSteps({ min: 2 });          // at least 2
-expect(trace).toHaveSteps({ max: 8 });          // at most 8
-expect(trace).toHaveSteps({ min: 2, max: 8 });  // between 2 and 8
+expect(trace).toHaveTurns();                    // at least 1 turn
+expect(trace).toHaveTurns({ min: 2 });          // at least 2
+expect(trace).toHaveTurns({ max: 8 });          // at most 8
+expect(trace).toHaveTurns({ min: 2, max: 8 });  // between 2 and 8
 ```
 
-#### `toHaveRetries({ max })`
+#### `toHaveStopReason(expected)`
 
-Asserts that the retry count is at most `max`.
+Asserts that the trace stopped for a specific reason.
 
 ```ts
-expect(trace).toHaveRetries({ max: 2 });
+expect(trace).toHaveStopReason("converged");
+expect(trace).toHaveStopReason("error");
+expect(trace).toHaveStopReason("timeout");
+```
+
+---
+
+### Baseline Matchers
+
+#### `toMatchBaseline(baseline)`
+
+Asserts that a trace matches a previously captured baseline — the structural "behavioral envelope" of the agent. Detects drift in tool usage, turn count, cost, and stop reason. See [Baseline Regression System](#baseline-regression-system) for details.
+
+```ts
+const baseline = extractBaseline(referenceTrace);
+expect(newTrace).toMatchBaseline(baseline);
+```
+
+---
+
+## Baseline Regression System
+
+The killer feature. Capture a trace's structural invariants and detect drift when prompts change, models upgrade, or tools update.
+
+### How It Works
+
+A `Baseline` captures the structural "shape" of a trace — not exact values, but ranges and invariants:
+
+```ts
+interface Baseline {
+  version: 1;
+  toolSet: string[];              // unique tool names, sorted
+  toolOrder: string[];            // full tool call sequence
+  turnCount: { min: number; max: number };
+  costRange?: { min: number; max: number };
+  tokenRange?: { min: number; max: number };
+  outputShape: string[];          // top-level keys of output (if object)
+  stopReason: string;
+}
+```
+
+### API
+
+```ts
+import { extractBaseline, compareBaseline, saveBaseline, loadBaseline, updateBaseline } from "agent-testing-library";
+
+// Extract a baseline from a known-good trace
+const baseline = extractBaseline(trace);
+
+// Compare a new trace against the baseline
+const diff = compareBaseline(newTrace, baseline);
+// diff.pass: boolean
+// diff.differences: string[] — human-readable list of what changed
+
+// Persist baselines to disk
+await saveBaseline(baseline, ".baselines/support-agent.json");
+const loaded = await loadBaseline(".baselines/support-agent.json");
+
+// Widen ranges from a new trace (e.g. after accepting a change)
+const updated = updateBaseline(existing, newTrace);
+```
+
+### Usage in Tests
+
+```ts
+test("agent behavior matches baseline", async () => {
+  const baseline = await loadBaseline(".baselines/support-agent.json");
+  const trace = await run(supportAgent, { input, mocks });
+  expect(trace).toMatchBaseline(baseline);
+});
+```
+
+---
+
+## Trace I/O
+
+Save, load, and debug traces.
+
+### `saveTrace(trace, path)` / `loadTrace(path)`
+
+Serialize traces to JSON and load them back. Error objects are properly serialized and reconstructed.
+
+```ts
+import { saveTrace, loadTrace } from "agent-testing-library";
+
+await saveTrace(trace, ".traces/run-123.json");
+const loaded = await loadTrace(".traces/run-123.json");
+```
+
+### `printTrace(trace)`
+
+Returns a human-readable summary string for debugging — like RTL's `screen.debug()`.
+
+```ts
+import { printTrace } from "agent-testing-library";
+
+console.log(printTrace(trace));
+```
+
+Output:
+
+```
+Trace: converged (3 turns, 5 tool calls, 0.002 USD, 1000 tokens, 245ms)
+  Turn 0 [classify]:
+    → llm("Classify...") → {"intent":"question","confidence":0.95}
+  Turn 1 [gather-context]:
+    → lookupCustomer("cust-1") → {"id":"cust-1","name":"Alice"}
+    → searchKnowledgeBase("What is...") → [{"title":"Return Policy"}]
+  Turn 2 [decide]:
+    → llm("Answer this...") → {"message":"Here is your answer..."}
+    → sendResponse("cust-1","Here is your answer...") → undefined
+  Output: {"intent":"question","responded":true,"escalated":false}
 ```
 
 ---
@@ -551,39 +687,39 @@ test("agent never deletes data", async () => {
     }
   );
 
-  expect(trace).toComplete();
+  expect(trace).toConverge();
   expect(trace).not.toHaveCalledTool("deleteUser");
   expect(trace).not.toHaveCalledTool("dropDatabase");
 });
 ```
 
-### Multi-Step Agents
+### Multi-Turn Agents
 
-Track logical steps in complex agent flows:
+Track logical turns in complex agent flows:
 
 ```ts
 test("agent follows plan-execute-verify pattern", async () => {
   const trace = await run(async (ctx) => {
-    const step1 = ctx.trace.startStep("plan");
-    step1.addToolCall({ name: "analyze", input: ctx.input, output: "plan" });
-    step1.end();
+    const turn1 = ctx.trace.startTurn("plan");
+    turn1.addToolCall({ name: "analyze", input: ctx.input, output: "plan" });
+    turn1.end();
 
-    const step2 = ctx.trace.startStep("execute");
-    step2.addToolCall({ name: "act", input: "plan", output: "result" });
-    step2.end();
+    const turn2 = ctx.trace.startTurn("execute");
+    turn2.addToolCall({ name: "act", input: "plan", output: "result" });
+    turn2.end();
 
-    const step3 = ctx.trace.startStep("verify");
-    step3.addToolCall({ name: "check", input: "result", output: "ok" });
-    step3.end();
+    const turn3 = ctx.trace.startTurn("verify");
+    turn3.addToolCall({ name: "check", input: "result", output: "ok" });
+    turn3.end();
 
     return "verified";
   });
 
-  expect(trace).toComplete();
-  expect(trace).toHaveSteps({ min: 3, max: 3 });
-  expect(trace.steps[0]!.label).toBe("plan");
-  expect(trace.steps[1]!.label).toBe("execute");
-  expect(trace.steps[2]!.label).toBe("verify");
+  expect(trace).toConverge();
+  expect(trace).toHaveTurns({ min: 3, max: 3 });
+  expect(trace.turns[0]!.label).toBe("plan");
+  expect(trace.turns[1]!.label).toBe("execute");
+  expect(trace.turns[2]!.label).toBe("verify");
 });
 ```
 
@@ -601,7 +737,8 @@ test("agent times out gracefully", async () => {
     { timeout: 100 }
   );
 
-  expect(trace).not.toComplete();
+  expect(trace).not.toConverge();
+  expect(trace).toHaveStopReason("timeout");
   expect(trace.error!.message).toContain("timed out");
 });
 ```
@@ -612,8 +749,6 @@ Use function implementations for mocks that need to compute responses:
 
 ```ts
 test("agent handles dynamic responses", async () => {
-  let callCount = 0;
-
   const trace = await run(
     async (ctx) => {
       const a = await ctx.tools.increment(1);
@@ -622,17 +757,53 @@ test("agent handles dynamic responses", async () => {
     },
     {
       mocks: {
-        increment: mock.fn((n: number) => {
-          callCount++;
-          return n + 1;
-        }),
+        increment: mock.fn((n: number) => n + 1),
       },
     }
   );
 
-  expect(trace).toComplete();
+  expect(trace).toConverge();
   expect(trace.output).toEqual({ a: 2, b: 3 });
   expect(trace).toHaveToolCallCount("increment", 2);
+});
+```
+
+### Baseline Regression Testing
+
+Capture a baseline from a known-good run and detect drift in future runs:
+
+```ts
+import { extractBaseline, saveBaseline, loadBaseline } from "agent-testing-library";
+
+// First time: capture and save baseline
+test("capture baseline", async () => {
+  const trace = await run(supportAgent, { input, mocks: baseMocks() });
+  const baseline = extractBaseline(trace);
+  await saveBaseline(baseline, ".baselines/support-agent.json");
+});
+
+// Subsequent runs: verify against baseline
+test("agent behavior matches baseline", async () => {
+  const baseline = await loadBaseline(".baselines/support-agent.json");
+  const trace = await run(supportAgent, { input, mocks: baseMocks() });
+  expect(trace).toMatchBaseline(baseline);
+});
+```
+
+### Debugging with printTrace
+
+When a test fails, use `printTrace` to quickly see what happened:
+
+```ts
+import { printTrace } from "agent-testing-library";
+
+test("debug a failing agent", async () => {
+  const trace = await run(supportAgent, { input, mocks: baseMocks() });
+
+  // Print trace for debugging
+  console.log(printTrace(trace));
+
+  expect(trace).toConverge();
 });
 ```
 
@@ -646,14 +817,16 @@ All types are exported from the main entry point:
 import type {
   Trace,
   ToolCall,
-  Step,
+  Turn,
   TokenUsage,
   TraceWriter,
-  StepHandle,
+  TurnHandle,
   RunOptions,
   RunContext,
   AgentFn,
   MockToolFn,
+  Baseline,
+  BaselineDiff,
 } from "agent-testing-library";
 ```
 
@@ -671,12 +844,15 @@ interface ToolCall {
 }
 ```
 
-### `Step`
+### `Turn`
 
 ```ts
-interface Step {
-  label: string;
+interface Turn {
+  index: number;                   // Auto-incremented, starting at 0
+  label?: string;                  // Optional developer label
   toolCalls: ToolCall[];
+  response?: string;               // Text output from this turn
+  tokens?: TokenUsage;
   duration: number;
   startedAt: number;
   endedAt: number;
@@ -694,6 +870,31 @@ interface TokenUsage {
 }
 ```
 
+### `Baseline`
+
+```ts
+interface Baseline {
+  version: 1;
+  toolSet: string[];              // unique tool names, sorted
+  toolOrder: string[];            // full tool call sequence
+  turnCount: { min: number; max: number };
+  costRange?: { min: number; max: number };
+  tokenRange?: { min: number; max: number };
+  outputShape: string[];          // top-level keys of output (if object)
+  stopReason: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
+### `BaselineDiff`
+
+```ts
+interface BaselineDiff {
+  pass: boolean;
+  differences: string[];   // human-readable list of what changed
+}
+```
+
 ---
 
 ## Project Structure
@@ -705,6 +906,8 @@ src/
   run.ts                      # run() — wires mocks, timeout, error handling
   trace-builder.ts            # Mutable accumulator → frozen Trace
   mock.ts                     # mock.fn(), mock.forbidden()
+  baseline.ts                 # Baseline extraction, comparison, persistence
+  trace-io.ts                 # Save/load/print traces
   setup.ts                    # expect.extend() preload
   matchers.d.ts               # Declaration merging for bun:test
   matchers/
@@ -712,23 +915,27 @@ src/
     helpers.ts                # assertIsTrace() guard
     tool-matchers.ts          # toHaveCalledTool, toHaveCalledToolWith, etc.
     budget-matchers.ts        # toBeWithinBudget, toBeWithinTokens, etc.
-    structural-matchers.ts    # toComplete, toHaveSteps, toHaveRetries
+    structural-matchers.ts    # toConverge, toHaveTurns, toHaveStopReason
+    baseline-matchers.ts      # toMatchBaseline
 tests/
-  helpers.ts                  # buildTrace(), buildToolCall() factories
+  helpers.ts                  # buildTrace(), buildToolCall(), buildTurn() factories
   trace-builder.test.ts
   mock.test.ts
   run.test.ts
+  baseline.test.ts
+  trace-io.test.ts
   matchers/
     tool-matchers.test.ts
     budget-matchers.test.ts
     structural-matchers.test.ts
+    baseline-matchers.test.ts
   integration/
     full-flow.test.ts         # End-to-end test of the full API
 examples/
   support-agent/
     types.ts                  # Domain types (Customer, Order, etc.)
-    agent.ts                  # Multi-step support agent with typed RunContext
-    agent.test.ts             # 24 tests demonstrating all ATL features
+    agent.ts                  # Multi-turn support agent with typed RunContext
+    agent.test.ts             # 27 tests demonstrating all ATL features
 ```
 
 ---

@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { run, mock, ForbiddenToolError } from "../../src/index.ts";
+import { run, mock, ForbiddenToolError, extractBaseline, compareBaseline, printTrace } from "../../src/index.ts";
 import { supportAgent } from "./agent.ts";
 import type {
   SupportInput,
@@ -80,13 +80,14 @@ const questionInput: SupportInput = {
 // ============================================================
 
 describe("happy path: general question", () => {
-  test("completes and calls the right tools in order", async () => {
+  test("converges and calls the right tools in order", async () => {
     const trace = await run(supportAgent, {
       input: questionInput,
       mocks: baseMocks(),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
+    expect(trace).toHaveStopReason("converged");
     expect(trace).toHaveCalledTool("llm");
     expect(trace).toHaveCalledTool("lookupCustomer");
     expect(trace).toHaveCalledTool("searchKnowledgeBase");
@@ -140,7 +141,7 @@ describe("refund: auto-approved (≤$100)", () => {
       }),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).toHaveCalledTool("processRefund");
     expect(trace).toHaveCalledToolWith("processRefund", [
       "ord-100",
@@ -210,7 +211,7 @@ describe("refund: escalated (>$100)", () => {
       }),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).toHaveCalledTool("createEscalation");
     expect(trace).not.toHaveCalledTool("processRefund");
     expect(trace).toHaveCalledTool("sendResponse");
@@ -256,7 +257,7 @@ describe("complaint: always escalates", () => {
       }),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).toHaveCalledTool("createEscalation");
     expect(trace).toHaveCalledTool("sendResponse");
     expect(trace).not.toHaveCalledTool("processRefund");
@@ -289,7 +290,7 @@ describe("policy compliance", () => {
       }),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).not.toHaveCalledTool("processRefund");
   });
 
@@ -301,7 +302,7 @@ describe("policy compliance", () => {
       }),
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).not.toHaveCalledTool("createEscalation");
   });
 
@@ -324,7 +325,8 @@ describe("policy compliance", () => {
       }),
     });
 
-    expect(trace).not.toComplete();
+    expect(trace).not.toConverge();
+    expect(trace).toHaveStopReason("error");
     expect(trace.error).toBeInstanceOf(ForbiddenToolError);
     expect(trace).toHaveCalledTool("processRefund");
   });
@@ -370,12 +372,13 @@ describe("error handling", () => {
       }),
     });
 
-    expect(trace).not.toComplete();
+    expect(trace).not.toConverge();
+    expect(trace).toHaveStopReason("error");
     expect(trace.error).toBeDefined();
     expect(trace.error!.message).toContain("Database connection failed");
   });
 
-  test("timeout produces incomplete trace", async () => {
+  test("timeout produces non-converged trace", async () => {
     const trace = await run(supportAgent, {
       input: questionInput,
       mocks: baseMocks({
@@ -387,32 +390,33 @@ describe("error handling", () => {
       timeout: 50,
     });
 
-    expect(trace).not.toComplete();
+    expect(trace).not.toConverge();
+    expect(trace).toHaveStopReason("timeout");
     expect(trace.error).toBeDefined();
     expect(trace.error!.message).toContain("timed out");
   });
 });
 
-describe("multi-step structure", () => {
-  test("has exactly 3 steps with correct labels", async () => {
+describe("multi-turn structure", () => {
+  test("has exactly 3 turns with correct labels", async () => {
     const trace = await run(supportAgent, {
       input: questionInput,
       mocks: baseMocks(),
     });
 
-    expect(trace).toHaveSteps({ min: 3, max: 3 });
-    expect(trace.steps[0]!.label).toBe("classify");
-    expect(trace.steps[1]!.label).toBe("gather-context");
-    expect(trace.steps[2]!.label).toBe("decide");
+    expect(trace).toHaveTurns({ min: 3, max: 3 });
+    expect(trace.turns[0]!.label).toBe("classify");
+    expect(trace.turns[1]!.label).toBe("gather-context");
+    expect(trace.turns[2]!.label).toBe("decide");
   });
 
-  test("tool calls are recorded at trace level across steps", async () => {
+  test("tool calls are recorded at trace level across turns", async () => {
     const trace = await run(supportAgent, {
       input: questionInput,
       mocks: baseMocks(),
     });
 
-    // Mocked tools record to the trace-level toolCalls, not step-level.
+    // Mocked tools record to the trace-level toolCalls, not turn-level.
     // For a question flow: llm (classify), lookupCustomer, searchKnowledgeBase, llm (answer), sendResponse
     expect(trace).toHaveToolCallCount("llm", 2);
     expect(trace).toHaveToolCallCount("lookupCustomer", 1);
@@ -463,6 +467,69 @@ describe("metadata and output", () => {
     });
 
     expect(trace).toHaveToolCallCount({ max: 10 });
-    expect(trace).toHaveRetries({ max: 0 });
+    expect(trace).toHaveStopReason("converged");
+  });
+});
+
+describe("baseline regression", () => {
+  test("extract baseline from happy path and verify another run matches", async () => {
+    const trace1 = await run(supportAgent, {
+      input: questionInput,
+      mocks: baseMocks(),
+    });
+
+    const baseline = extractBaseline(trace1);
+
+    const trace2 = await run(supportAgent, {
+      input: questionInput,
+      mocks: baseMocks(),
+    });
+
+    expect(trace2).toMatchBaseline(baseline);
+  });
+
+  test("baseline detects tool set changes", async () => {
+    const trace1 = await run(supportAgent, {
+      input: questionInput,
+      mocks: baseMocks(),
+    });
+
+    const baseline = extractBaseline(trace1);
+
+    // A refund flow uses different tools
+    const refundInput: SupportInput = {
+      customerId: "cust-1",
+      message: "I want a refund",
+      orderId: "ord-100",
+    };
+
+    const trace2 = await run(supportAgent, {
+      input: refundInput,
+      mocks: baseMocks({
+        llm: mock.fn({
+          intent: "refund",
+          confidence: 0.98,
+          orderId: "ord-100",
+        } as ClassifyResult),
+      }),
+    });
+
+    const diff = compareBaseline(trace2, baseline);
+    expect(diff.pass).toBe(false);
+    expect(diff.differences.length).toBeGreaterThan(0);
+  });
+});
+
+describe("printTrace debugging", () => {
+  test("printTrace produces readable output", async () => {
+    const trace = await run(supportAgent, {
+      input: questionInput,
+      mocks: baseMocks(),
+    });
+
+    const output = printTrace(trace);
+    expect(output).toContain("Trace: converged");
+    expect(output).toContain("turns");
+    expect(output).toContain("tool calls");
   });
 });

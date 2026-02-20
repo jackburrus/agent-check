@@ -6,13 +6,13 @@ describe("TraceBuilder", () => {
     const builder = new TraceBuilder();
     const trace = builder.build();
 
-    expect(trace.completed).toBe(false);
+    expect(trace.converged).toBe(false);
+    expect(trace.stopReason).toBe("error");
     expect(trace.error).toBeUndefined();
     expect(trace.input).toBeUndefined();
     expect(trace.output).toBeUndefined();
     expect(trace.toolCalls).toEqual([]);
-    expect(trace.steps).toEqual([]);
-    expect(trace.retries).toBe(0);
+    expect(trace.turns).toEqual([]);
     expect(trace.cost).toBeUndefined();
     expect(trace.tokens).toBeUndefined();
     expect(trace.duration).toBeGreaterThanOrEqual(0);
@@ -37,13 +37,15 @@ describe("TraceBuilder", () => {
     expect(trace.toolCalls[0]!.output).toEqual({ name: "Bob" });
   });
 
-  test("sets completed and output", () => {
+  test("sets converged and output", () => {
     const builder = new TraceBuilder();
-    builder.setCompleted(true);
+    builder.setConverged(true);
+    builder.setStopReason("converged");
     builder.setOutput({ greeting: "Hello" });
 
     const trace = builder.build();
-    expect(trace.completed).toBe(true);
+    expect(trace.converged).toBe(true);
+    expect(trace.stopReason).toBe("converged");
     expect(trace.output).toEqual({ greeting: "Hello" });
   });
 
@@ -82,13 +84,13 @@ describe("TraceBuilder", () => {
     expect(trace.tokens!.total).toBe(999);
   });
 
-  test("sets retries and metadata", () => {
+  test("sets stopReason and metadata", () => {
     const builder = new TraceBuilder();
-    builder.setRetries(3);
+    builder.setStopReason("maxTurns");
     builder.setMetadata("model", "gpt-4");
 
     const trace = builder.build();
-    expect(trace.retries).toBe(3);
+    expect(trace.stopReason).toBe("maxTurns");
     expect(trace.metadata).toEqual({ model: "gpt-4" });
   });
 
@@ -97,7 +99,7 @@ describe("TraceBuilder", () => {
     const trace = builder.build();
 
     expect(() => {
-      (trace as any).completed = true;
+      (trace as any).converged = true;
     }).toThrow();
   });
 });
@@ -118,25 +120,63 @@ describe("TraceWriter", () => {
     expect(trace.toolCalls[0]!.name).toBe("search");
   });
 
-  test("startStep creates a step with tool calls", () => {
+  test("startTurn creates a turn with tool calls", () => {
     const builder = new TraceBuilder();
     const writer = builder.writer();
 
-    const step = writer.startStep("reasoning", { model: "gpt-4" });
-    step.addToolCall({
+    const turn = writer.startTurn("reasoning", { model: "gpt-4" });
+    turn.addToolCall({
       name: "think",
       input: "problem",
       output: "solution",
     });
-    step.end();
+    turn.end();
 
     const trace = builder.build();
-    expect(trace.steps).toHaveLength(1);
-    expect(trace.steps[0]!.label).toBe("reasoning");
-    expect(trace.steps[0]!.toolCalls).toHaveLength(1);
-    expect(trace.steps[0]!.metadata).toEqual({ model: "gpt-4" });
-    // Step tool calls also appear in top-level toolCalls
+    expect(trace.turns).toHaveLength(1);
+    expect(trace.turns[0]!.label).toBe("reasoning");
+    expect(trace.turns[0]!.index).toBe(0);
+    expect(trace.turns[0]!.toolCalls).toHaveLength(1);
+    expect(trace.turns[0]!.metadata).toEqual({ model: "gpt-4" });
+    // Turn tool calls also appear in top-level toolCalls
     expect(trace.toolCalls).toHaveLength(1);
+  });
+
+  test("startTurn auto-increments index", () => {
+    const builder = new TraceBuilder();
+    const writer = builder.writer();
+
+    const turn0 = writer.startTurn("first");
+    turn0.end();
+    const turn1 = writer.startTurn("second");
+    turn1.end();
+
+    const trace = builder.build();
+    expect(trace.turns[0]!.index).toBe(0);
+    expect(trace.turns[1]!.index).toBe(1);
+  });
+
+  test("startTurn label is optional", () => {
+    const builder = new TraceBuilder();
+    const writer = builder.writer();
+
+    const turn = writer.startTurn();
+    turn.end();
+
+    const trace = builder.build();
+    expect(trace.turns[0]!.label).toBeUndefined();
+  });
+
+  test("TurnHandle.setResponse captures text", () => {
+    const builder = new TraceBuilder();
+    const writer = builder.writer();
+
+    const turn = writer.startTurn("reply");
+    turn.setResponse("Hello, world!");
+    turn.end();
+
+    const trace = builder.build();
+    expect(trace.turns[0]!.response).toBe("Hello, world!");
   });
 
   test("setOutput overrides output", () => {
@@ -165,15 +205,6 @@ describe("TraceWriter", () => {
 
     const trace = builder.build();
     expect(trace.tokens).toEqual({ input: 50, output: 25, total: 75 });
-  });
-
-  test("setRetries sets retries via writer", () => {
-    const builder = new TraceBuilder();
-    const writer = builder.writer();
-    writer.setRetries(2);
-
-    const trace = builder.build();
-    expect(trace.retries).toBe(2);
   });
 
   test("setMetadata sets metadata via writer", () => {

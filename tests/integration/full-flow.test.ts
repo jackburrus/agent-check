@@ -10,11 +10,10 @@ describe("Integration: full agent flow", () => {
 
         ctx.trace.setCost(0.003);
         ctx.trace.setTokens({ input: 150, output: 50 });
-        ctx.trace.setRetries(1);
         ctx.trace.setMetadata("model", "gpt-4");
 
-        const step = ctx.trace.startStep("compose-greeting");
-        step.end();
+        const turn = ctx.trace.startTurn("compose-greeting");
+        turn.end();
 
         return { greeting: `Hello, ${(user as any).name}!`, theme: (prefs as any).theme };
       },
@@ -29,10 +28,10 @@ describe("Integration: full agent flow", () => {
     );
 
     // Structural
-    expect(trace).toComplete();
-    expect(trace).toHaveSteps();
-    expect(trace).toHaveSteps({ min: 1, max: 5 });
-    expect(trace).toHaveRetries({ max: 2 });
+    expect(trace).toConverge();
+    expect(trace).toHaveTurns();
+    expect(trace).toHaveTurns({ min: 1, max: 5 });
+    expect(trace).toHaveStopReason("converged");
 
     // Tool calls
     expect(trace).toHaveCalledTool("lookupUser");
@@ -68,18 +67,18 @@ describe("Integration: full agent flow", () => {
   test(".not negation works for all matchers", async () => {
     const trace = await run(async () => "done");
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).not.toHaveCalledTool("anything");
     expect(trace).not.toHaveCalledToolWith("anything", {});
-    expect(trace).not.toHaveSteps();
-    expect(trace).toHaveRetries({ max: 0 });
+    expect(trace).not.toHaveTurns();
+    expect(trace).toHaveStopReason("converged");
     expect(trace).not.toBeWithinBudget({ maxUsd: 1 }); // no cost data
     expect(trace).not.toBeWithinTokens({ maxTotal: 1000 }); // no token data
     expect(trace).toBeWithinLatency({ maxMs: 5000 });
     expect(trace).toHaveToolCallCount({ max: 0 });
   });
 
-  test("timeout produces incomplete trace", async () => {
+  test("timeout produces non-converged trace", async () => {
     const trace = await run(
       async () => {
         await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -88,7 +87,8 @@ describe("Integration: full agent flow", () => {
       { timeout: 50 }
     );
 
-    expect(trace).not.toComplete();
+    expect(trace).not.toConverge();
+    expect(trace).toHaveStopReason("timeout");
     expect(trace.error).toBeDefined();
     expect(trace.error!.message).toContain("timed out");
   });
@@ -105,7 +105,8 @@ describe("Integration: full agent flow", () => {
       }
     );
 
-    expect(trace).not.toComplete();
+    expect(trace).not.toConverge();
+    expect(trace).toHaveStopReason("error");
     expect(trace.error).toBeInstanceOf(ForbiddenToolError);
     expect(trace).toHaveCalledTool("nuke");
     expect(trace).toHaveCalledToolWith("nuke", { target: "everything" });
@@ -118,7 +119,7 @@ describe("Integration: full agent flow", () => {
       return "original";
     });
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace.output).toBe("overridden");
   });
 
@@ -135,7 +136,7 @@ describe("Integration: full agent flow", () => {
       }
     );
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace.output).toBe(10);
     expect(trace).toHaveCalledToolWith("double", 5);
   });
@@ -158,7 +159,7 @@ describe("Integration: full agent flow", () => {
       }
     );
 
-    expect(trace).toComplete();
+    expect(trace).toConverge();
     expect(trace).toHaveToolCallCount("llm", 3);
     const output = trace.output as any;
     expect(output.first).toEqual({ intent: "question" });
@@ -167,32 +168,32 @@ describe("Integration: full agent flow", () => {
     expect(output.third).toEqual({ message: "Here is your answer" });
   });
 
-  test("multiple steps with tool calls", async () => {
+  test("multiple turns with tool calls", async () => {
     const trace = await run(
       async (ctx) => {
-        const step1 = ctx.trace.startStep("fetch-data");
-        step1.addToolCall({
+        const turn1 = ctx.trace.startTurn("fetch-data");
+        turn1.addToolCall({
           name: "fetchAPI",
           input: "/users",
           output: [{ id: 1 }],
         });
-        step1.end();
+        turn1.end();
 
-        const step2 = ctx.trace.startStep("process-data");
-        step2.addToolCall({
+        const turn2 = ctx.trace.startTurn("process-data");
+        turn2.addToolCall({
           name: "transform",
           input: [{ id: 1 }],
           output: [{ id: 1, processed: true }],
         });
-        step2.end();
+        turn2.end();
 
         return "processed";
       }
     );
 
-    expect(trace).toComplete();
-    expect(trace).toHaveSteps({ min: 2, max: 2 });
-    expect(trace.steps[0]!.label).toBe("fetch-data");
-    expect(trace.steps[1]!.label).toBe("process-data");
+    expect(trace).toConverge();
+    expect(trace).toHaveTurns({ min: 2, max: 2 });
+    expect(trace.turns[0]!.label).toBe("fetch-data");
+    expect(trace.turns[1]!.label).toBe("process-data");
   });
 });
