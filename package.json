@@ -1,6 +1,6 @@
 {
   "name": "agent-check",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A testing library for AI agents — trace tool calls, assert on behavior, and track baselines",
   "type": "module",
   "main": "./dist/index.js",
