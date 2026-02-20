@@ -13,7 +13,7 @@ const embedding: Embedding = {
 };
 
 const documents: Document[] = [
-  { id: "doc-1", title: "Getting Started", content: "To install, run bun install agent-testkit.", source: "docs", score: 0.92 },
+  { id: "doc-1", title: "Getting Started", content: "To install, run bun install agent-check.", source: "docs", score: 0.92 },
   { id: "doc-2", title: "API Reference", content: "The run() function executes an agent and returns a Trace.", source: "docs", score: 0.85 },
   { id: "doc-3", title: "FAQ", content: "ATL works with any agent framework or none at all.", source: "faq", score: 0.71 },
 ];
@@ -35,7 +35,7 @@ function baseMocks(overrides: Record<string, ReturnType<typeof mock.fn>> = {}) {
     embed: mock.fn(embedding),
     search: mock.fn(documents),
     rerank: mock.fn(documents),
-    generate: mock.fn({ text: "To install, run bun install agent-testkit.", tokensUsed: 80 }),
+    generate: mock.fn({ text: "To install, run bun install agent-check.", tokensUsed: 80 }),
     ...overrides,
   };
 }

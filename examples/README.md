@@ -255,7 +255,7 @@ test("embedding failure produces error trace", async () => {
 Use `RunContext<TInput, TTools>` for full type safety — no casting needed:
 
 ```ts
-import type { RunContext } from "agent-testkit";
+import type { RunContext } from "agent-check";
 
 interface MyTools {
   search: (query: string) => Promise<Result[]>;

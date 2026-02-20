@@ -173,16 +173,16 @@ Sophisticated mock capabilities for complex agent testing scenarios.
 ## Package Strategy
 
 ```
-agent-testkit                   ← core library (run, trace, matchers, mocks, baselines)
-@agent-testkit/jest             ← jest setup + reporter
-@agent-testkit/vitest           ← vitest plugin + reporter
-@agent-testkit/cli              ← CLI tools (baselines, recording, reports)
+agent-check                   ← core library (run, trace, matchers, mocks, baselines)
+@agent-check/jest             ← jest setup + reporter
+@agent-check/vitest           ← vitest plugin + reporter
+@agent-check/cli              ← CLI tools (baselines, recording, reports)
 ```
 
 Install with one command. Work immediately. No accounts, no API keys, no config files.
 
 ```bash
-npm install -D agent-testkit
+npm install -D agent-check
 ```
 
 ## Target User
